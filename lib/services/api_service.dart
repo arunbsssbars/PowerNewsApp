@@ -7,10 +7,12 @@ import '../models/morning_digest.dart';
 
 class ApiService {
   static const List<String> candidateHosts = [
-    // 1. ADB Reverse Tunnel (Instantaneous, zero firewall restrictions over Wi-Fi debugging)
+    // 1. Production Render Cloud URL (Works worldwide on 4G/5G/Wi-Fi)
+    'https://powernewsapp-backend.onrender.com',
+    // 2. ADB Reverse Tunnel (Instantaneous, zero firewall restrictions over Wi-Fi debugging)
     'http://127.0.0.1:3000',
     'http://localhost:3000',
-    // 2. Direct Wi-Fi LAN / Hotspot
+    // 3. Direct Wi-Fi LAN / Hotspot
     'http://172.20.10.11:3000',
     // 3. Tailscale Mesh Network
     'http://100.98.130.99:3000',
@@ -30,11 +32,11 @@ class ApiService {
   }
 
   Future<bool> checkAndSelectHost() async {
-    // Probe candidate hosts in parallel with fast 2s timeout
+    // Probe candidate hosts in parallel with 4s timeout for cloud TLS handshake
     final List<Future<String?>> probes = candidateHosts.map((host) async {
       try {
         final uri = Uri.parse('$host/api/health');
-        final res = await http.get(uri).timeout(const Duration(seconds: 2));
+        final res = await http.get(uri).timeout(const Duration(seconds: 4));
         if (res.statusCode == 200) {
           return host;
         }
@@ -43,7 +45,14 @@ class ApiService {
     }).toList();
 
     final results = await Future.wait(probes);
-    final workingHost = results.firstWhere((h) => h != null, orElse: () => null);
+    // Prioritize by order of definition in candidateHosts (production cloud first)
+    String? workingHost;
+    for (final host in candidateHosts) {
+      if (results.contains(host)) {
+        workingHost = host;
+        break;
+      }
+    }
 
     if (workingHost != null) {
       _activeHost = workingHost;
@@ -51,7 +60,7 @@ class ApiService {
       return true;
     }
 
-    _activeHost = 'http://192.168.1.12:3000';
+    _activeHost = candidateHosts.first;
     return false;
   }
 
