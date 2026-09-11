@@ -17,10 +17,10 @@ COPY ai-summaries-cache.json* ./
 
 # Default environment variables
 ENV NODE_ENV=production
-ENV PORT=8000
+ENV PORT=3000
 
 # Expose container port
-EXPOSE 8000
+EXPOSE 3000
 
 # Start server using size-optimized flags
 CMD ["npm", "start"]
