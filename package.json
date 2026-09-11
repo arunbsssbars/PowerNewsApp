@@ -1,0 +1,33 @@
+{
+  "name": "powernewsapp",
+  "version": "1.0.0",
+  "description": "",
+  "main": "news-aggregator.js",
+  "scripts": {
+    "start": "node --optimize-for-size --max-old-space-size=64 news-aggregator.js",
+    "dev": "node --optimize-for-size --max-old-space-size=64 --watch news-aggregator.js",
+    "check": "node --check server/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "power",
+    "news",
+    "energy",
+    "grid",
+    "india"
+  ],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@google/genai": "^2.21.0",
+    "cheerio": "^1.2.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "git": "^0.1.5",
+    "google-news-url-decoder": "^1.2.2",
+    "node-cron": "^4.6.0",
+    "rss-parser": "^3.13.0"
+  }
+}
