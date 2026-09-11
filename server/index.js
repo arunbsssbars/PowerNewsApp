@@ -17,6 +17,11 @@ app.use(express.json());
 // Mount API router
 app.use('/api', apiRoutes);
 
+// Root health probe — uptime monitors that check "/" get a 200 instead of 404
+app.get('/', (req, res) => {
+  res.json({ app: 'PowerNews', status: 'ok', healthEndpoint: '/api/health' });
+});
+
 // APK Download & Landing Page Helpers
 function getAvailableApkPath() {
   const rootDir = path.join(__dirname, '..');

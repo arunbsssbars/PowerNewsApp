@@ -154,11 +154,16 @@ async function syncFeeds(currentCachedArticles = []) {
     const rawArticles = await fetchRSSArticles();
 
     console.log(`[PowerNews] Pre-warming ${ALL_PREWARM_QUERIES.length} OEM/Utility/DISCOM/State topic feeds...`);
-    for (const query of ALL_PREWARM_QUERIES) {
+    const prewarmStart = Date.now();
+    for (let i = 0; i < ALL_PREWARM_QUERIES.length; i++) {
+      const query = ALL_PREWARM_QUERIES[i];
       try {
         const articles = await searchLiveTopicRSS(query);
         rawArticles.push(...articles);
       } catch (_) { }
+      if ((i + 1) % 10 === 0 || i === ALL_PREWARM_QUERIES.length - 1) {
+        console.log(`[PowerNews] Pre-warm progress: ${i + 1}/${ALL_PREWARM_QUERIES.length} feeds fetched (${Math.round((Date.now() - prewarmStart) / 1000)}s elapsed)`);
+      }
       await new Promise(r => setTimeout(r, 150));
     }
 
