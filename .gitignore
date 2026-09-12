@@ -20,9 +20,8 @@ pnpm-debug.log*
 lerna-debug.log*
 .pnpm-store/
 
-# Runtime caches & data
-ai-summaries-cache.json
-*cache*.json
+# Runtime caches & data (ai-summaries-cache.json tracked to pre-seed cloud deployments)
+!ai-summaries-cache.json
 server/data/*.json
 !server/data/.gitkeep
 
