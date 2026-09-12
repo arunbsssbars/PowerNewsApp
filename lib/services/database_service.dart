@@ -173,6 +173,19 @@ class DatabaseService {
     }).toList();
   }
 
+  /// Delete any legacy non-AI summaries from local SQLite
+  Future<int> purgeNonAiSummaries() async {
+    final db = await database;
+    final count = await db.delete(
+      'articles',
+      where: "summary LIKE '• %' OR summary LIKE '- %' OR summary LIKE '* %'",
+    );
+    if (count > 0) {
+      debugPrint('[DatabaseService] Purged $count legacy bullet articles from SQLite');
+    }
+    return count;
+  }
+
   /// Get only bookmarked articles
   Future<List<NewsArticle>> getBookmarkedArticles() async {
     final db = await database;

@@ -200,11 +200,12 @@ class NewsProvider extends ChangeNotifier {
   Future<void> init() async {
     _isLoading = true;
 
-    // 0. One-time migration from SharedPreferences → SQLite (runs once)
+    // 0. One-time migration and cleanup of any legacy non-AI summaries from SQLite
     try {
       await _dbService.migrateFromSharedPreferences();
+      await _dbService.purgeNonAiSummaries();
     } catch (e) {
-      debugPrint('[NewsProvider] Migration error (non-fatal): $e');
+      debugPrint('[NewsProvider] Migration/cleanup error (non-fatal): $e');
     }
 
     // 1. Unified Instant Cache & Local Preference Loading in ONE consolidated pass
@@ -941,9 +942,9 @@ class NewsProvider extends ChangeNotifier {
           return false;
         }
       }
-      // Clean Summary Quality Gate: Only display articles with rich, authentic summaries
+      // Strict AI Summary Gate: ONLY genuine narrative AI summaries (non-bullet, >= 75 chars)
       final sum = a.summary.trim();
-      if (sum.length < 75) {
+      if (sum.length < 75 || sum.startsWith('• ') || sum.startsWith('- ') || sum.startsWith('* ')) {
         return false;
       }
       if (sum.toLowerCase() == a.title.trim().toLowerCase()) {
@@ -1005,10 +1006,13 @@ class NewsProvider extends ChangeNotifier {
         limit: _pageSize,
       );
 
-      // Filter out low-grade stubs so feed contains 100% verified clean summaries
+      // Filter out low-grade or non-AI stubs so feed contains 100% verified AI summaries
       final cleanNews = news.where((a) {
         final s = a.summary.trim();
         return s.length >= 75 &&
+            !s.startsWith('• ') &&
+            !s.startsWith('- ') &&
+            !s.startsWith('* ') &&
             s.toLowerCase() != a.title.trim().toLowerCase() &&
             !s.contains('prohibited content policy') &&
             !s.startsWith('• A global renewable energy power plant step');
@@ -1119,9 +1123,19 @@ class NewsProvider extends ChangeNotifier {
     _noInternetOnScroll = false;
     notifyListeners();
 
-    // 1. Instant Local Pagination: If in-memory cache has more items, append next batch with zero latency
+    // 1. Instant Local Pagination: Ensure local cache only emits strictly verified AI summaries
     if (_cachedFullList.length > _articles.length) {
-      final nextBatch = _cachedFullList.skip(_articles.length).take(_pageSize).toList();
+      final nextBatch = _cachedFullList
+          .skip(_articles.length)
+          .take(_pageSize)
+          .where((a) {
+            final s = a.summary.trim();
+            return s.length >= 75 &&
+                !s.startsWith('• ') &&
+                !s.startsWith('- ') &&
+                !s.startsWith('* ');
+          })
+          .toList();
       if (nextBatch.isNotEmpty) {
         _articles.addAll(nextBatch);
         _hasMore = _cachedFullList.length > _articles.length;
@@ -1157,6 +1171,9 @@ class NewsProvider extends ChangeNotifier {
       final cleanMore = moreNews.where((a) {
         final s = a.summary.trim();
         return s.length >= 75 &&
+            !s.startsWith('• ') &&
+            !s.startsWith('- ') &&
+            !s.startsWith('* ') &&
             s.toLowerCase() != a.title.trim().toLowerCase() &&
             !s.contains('prohibited content policy') &&
             !s.startsWith('• A global renewable energy power plant step');

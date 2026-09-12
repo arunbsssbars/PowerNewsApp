@@ -87,32 +87,23 @@ function getReadableRefreshTime(isoDateString) {
 }
 
 // ----------------------------------------------------------------------------
-// Active Power Sector Articles & Progressive AI Summaries Gatekeeper
+// Strictly Verified AI Summaries Gatekeeper
+// Only articles with genuine Gemini narrative summaries (saved in DB) are served
 // ----------------------------------------------------------------------------
-function getActiveArticles({ requireAiSummary = false } = {}) {
+function getActiveArticles() {
   const cachedArticles = articleStore.getArticles();
   const retained = filterArticlesRetention7Days(cachedArticles);
-  if (requireAiSummary) {
-    const summarized = retained
-      .filter(a => a.id && aiSummaryCache[a.id] && aiSummaryCache[a.id].length >= 75 && !aiSummaryCache[a.id].startsWith('• '))
-      .map(a => ({
-        ...a,
-        title: cleanHeadline(a.title),
-        summary: aiSummaryCache[a.id],
-        isAiSummary: true,
-      }));
-    return summarized;
-  }
-  return retained.map(a => {
-    const aiSum = a.id && aiSummaryCache[a.id];
-    const hasRealAi = Boolean(aiSum && aiSum.length >= 75 && !aiSum.startsWith('• '));
-    return {
+  return retained
+    .filter(a => {
+      const s = a.id && aiSummaryCache[a.id];
+      return Boolean(s && s.length >= 75 && !s.startsWith('• '));
+    })
+    .map(a => ({
       ...a,
       title: cleanHeadline(a.title),
-      summary: hasRealAi ? aiSum : cleanText(a.summary),
-      isAiSummary: hasRealAi,
-    };
-  });
+      summary: aiSummaryCache[a.id],
+      isAiSummary: true,
+    }));
 }
 
 // ----------------------------------------------------------------------------
@@ -156,8 +147,8 @@ router.get('/refresh', async (req, res) => {
 // Primary News Feed Endpoint (Strictly AI-Summarized Curated Feed)
 // ----------------------------------------------------------------------------
 router.get('/news', async (req, res) => {
-  const { category, state, city, discom, player, search, source, onlyAi, page = 1, limit = DEFAULT_PAGE_SIZE } = req.query;
-  const activePool = getActiveArticles({ requireAiSummary: onlyAi === 'true' });
+  const { category, state, city, discom, player, search, source, page = 1, limit = DEFAULT_PAGE_SIZE } = req.query;
+  const activePool = getActiveArticles();
 
   let filtered = [...activePool];
 
