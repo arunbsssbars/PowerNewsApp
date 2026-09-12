@@ -20,6 +20,7 @@ const {
   runGeminiBatchSummarization,
   pruneAiSummaryCache,
 } = require('./geminiService');
+const { saveSummaryToFirestore } = require('./firestoreService');
 
 const parser = new Parser({
   timeout: 20000,
@@ -27,6 +28,9 @@ const parser = new Parser({
     'User-Agent': 'PowerNewsEngine/3.0 (India Power Sector Intelligence)'
   }
 });
+
+// Self-retiring set to prevent duplicate Firestore writes across sync cycles
+const backfilledArticleIds = new Set();
 
 async function fetchRSSArticles() {
   const results = [];
@@ -244,6 +248,26 @@ async function syncFeeds(currentCachedArticles = [], articleStore = null) {
       pruneAiSummaryCache(clusteredArticles);
 
       console.log(`[PowerNews] Indexed ${clusteredArticles.length} clean power sector articles (strictly within 7-day retention, newest first). AI Cache: ${Object.keys(aiSummaryCache).length} active summaries.`);
+
+      // One-time self-retiring backfill: upgrade legacy articles in Firestore once without repeat writes
+      const toBackfill = clusteredArticles.filter(a =>
+        a.id &&
+        !backfilledArticleIds.has(a.id) &&
+        aiSummaryCache[a.id] &&
+        aiSummaryCache[a.id].length >= 75 &&
+        !aiSummaryCache[a.id].startsWith('• ')
+      );
+      if (toBackfill.length > 0) {
+        setImmediate(async () => {
+          for (const a of toBackfill) {
+            backfilledArticleIds.add(a.id);
+            try {
+              await saveSummaryToFirestore(a.id, aiSummaryCache[a.id], a);
+            } catch (_) {}
+          }
+          console.log(`[Firestore Migration] Backfilled ${toBackfill.length} legacy articles with full 14 fields.`);
+        });
+      }
 
       if (ai) {
         const unsumCount = clusteredArticles.filter(a => a.id && !aiSummaryCache[a.id]).length;

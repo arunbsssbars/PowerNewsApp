@@ -200,12 +200,11 @@ class NewsProvider extends ChangeNotifier {
   Future<void> init() async {
     _isLoading = true;
 
-    // 0. One-time migration and cleanup of any legacy non-AI summaries from SQLite
+    // 0. Cleanup of any legacy non-AI summaries from SQLite
     try {
-      await _dbService.migrateFromSharedPreferences();
       await _dbService.purgeNonAiSummaries();
     } catch (e) {
-      debugPrint('[NewsProvider] Migration/cleanup error (non-fatal): $e');
+      debugPrint('[NewsProvider] Cleanup error (non-fatal): $e');
     }
 
     // 1. Unified Instant Cache & Local Preference Loading in ONE consolidated pass

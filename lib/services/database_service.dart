@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart' as p;
-import 'package:shared_preferences/shared_preferences.dart';
 import '../models/news_article.dart';
 
 /// SQLite-backed offline database for zero-latency cold start and full-text search.
@@ -353,72 +352,6 @@ class DatabaseService {
     if (rows.isEmpty) return null;
     return rows.first['value'] as String?;
   }
-
-  // ──────────── Migration Helper ────────────
-
-  /// One-time migration from SharedPreferences cache to SQLite
-  Future<bool> migrateFromSharedPreferences() async {
-    try {
-      final alreadyMigrated = await getSyncMeta('migrated_from_prefs');
-      if (alreadyMigrated == 'true') return false;
-
-      debugPrint('[DatabaseService] Starting one-time migration from SharedPreferences...');
-
-      // Migrate cached articles
-      final prefs = await SharedPreferences.getInstance();
-      final rawList = prefs.getStringList('local_cached_news_articles');
-      if (rawList != null && rawList.isNotEmpty) {
-        final articles = <NewsArticle>[];
-        for (final item in rawList) {
-          try {
-            articles.add(NewsArticle.fromJson(json.decode(item)));
-          } catch (_) {}
-        }
-        if (articles.isNotEmpty) {
-          await upsertArticles(articles);
-        }
-      }
-
-      // Migrate bookmarks
-      final bookmarkRaw = prefs.getStringList('saved_power_articles');
-      if (bookmarkRaw != null && bookmarkRaw.isNotEmpty) {
-        final db = await database;
-        final batch = db.batch();
-        for (final item in bookmarkRaw) {
-          try {
-            final article = NewsArticle.fromJson(json.decode(item));
-            // Ensure article exists, then set bookmarked
-            final now = DateTime.now().toIso8601String();
-            batch.rawInsert('''
-              INSERT OR REPLACE INTO articles
-                (id, title, summary, url, source, published_at, categories, player, city, state,
-                 discom, full_text, sources_json, source_links_json, coverage_count,
-                 is_bookmarked, cached_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
-            ''', [
-              article.id, article.title, article.summary, article.url, article.source,
-              article.publishedAt.toIso8601String(),
-              json.encode(article.categories),
-              article.player, article.city, article.state, article.discom, article.fullText,
-              json.encode(article.sources),
-              json.encode(article.sourceLinks.map((l) => {'source': l['source'], 'url': l['url']}).toList()),
-              article.coverageCount,
-              now,
-            ]);
-          } catch (_) {}
-        }
-        await batch.commit(noResult: true);
-      }
-
-      await setSyncMeta('migrated_from_prefs', 'true');
-      debugPrint('[DatabaseService] Migration complete!');
-      return true;
-    } catch (e) {
-      debugPrint('[DatabaseService] Migration error: $e');
-      return false;
-    }
-  }
-
 
   // ──────────── Internal Helpers ────────────
 
