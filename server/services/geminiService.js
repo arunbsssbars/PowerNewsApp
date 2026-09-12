@@ -150,7 +150,7 @@ Strict Output Rules:
 - Do NOT include markdown bold labels, preambles, section headers, or emojis. Output only the bullet lines starting with "• ".`;
 
     const envModel = process.env.GEMINI_MODEL ? process.env.GEMINI_MODEL.trim() : null;
-    const modelsToTry = envModel ? [envModel] : ['gemini-1.5-flash-8b', 'gemini-1.5-flash'];
+    const modelsToTry = envModel ? [envModel] : ['gemini-3.5-flash-lite', 'gemini-3.6-flash'];
 
     for (const model of modelsToTry) {
       try {
@@ -465,7 +465,7 @@ INSTRUCTIONS:
 
   if (ai && Date.now() > geminiCoolingDownUntil) {
     const envModel = process.env.GEMINI_MODEL ? process.env.GEMINI_MODEL.trim() : null;
-    const modelsToTry = envModel ? [envModel] : ['gemini-1.5-flash', 'gemini-1.5-pro'];
+    const modelsToTry = envModel ? [envModel] : ['gemini-3.6-flash', 'gemini-3.7-flash', 'gemini-3.1-flash-lite'];
     for (const model of modelsToTry) {
       try {
         const response = await ai.models.generateContent({
