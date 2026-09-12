@@ -181,6 +181,7 @@ STRICT EDITORIAL GUIDELINES:
               player,
               state,
               discom,
+              isAiGenerated: true,
             });
           }
           const wordCount = aiText.split(/\s+/).filter(Boolean).length;
@@ -200,7 +201,7 @@ STRICT EDITORIAL GUIDELINES:
     geminiCoolingDownUntil = Date.now() + 20000;
   }
 
-  // Step 3: Pure Content-Grounded Heuristic Fallback
+  // Step 3: Pure Content-Grounded Heuristic Fallback (Ephemeral only — NEVER saved to DB or AI Cache)
   const fallbackBullets = [];
   if (articleContent && articleContent.length > 80) {
     const paras = articleContent
@@ -238,18 +239,8 @@ STRICT EDITORIAL GUIDELINES:
   }
 
   const result = cleanSummaryOutput(fallbackBullets.join('\n'));
-  if (articleId && result.length > 20) {
-    aiSummaryCache[articleId] = result;
-    if (result.length >= 60) {
-      saveSummaryToFirestore(articleId, result, {
-        title: cleanTitle,
-        category,
-        player,
-        state,
-        discom,
-      });
-    }
-  }
+  // Note: Fallbacks are NOT saved to Firestore or aiSummaryCache.
+  // The curated feed and database only take genuine Gemini AI summaries.
   return result;
 }
 
@@ -284,7 +275,7 @@ async function runGeminiBatchSummarization(articles = []) {
             a.id, a.title, a.summary,
             a.categories[0], a.player, a.state, a.discom, a.url, articles
           );
-          if (aiSum && aiSum.length > 30) {
+          if (aiSum && aiSum.length > 30 && !aiSum.startsWith('• ')) {
             a.summary = aiSum;
             processed++;
           }

@@ -70,11 +70,17 @@ async function loadAllSummariesFromFirestore() {
     const map = {};
     snapshot.forEach(doc => {
       const data = doc.data();
-      if (data && data.summary && typeof data.summary === 'string' && data.summary.length >= 60) {
+      if (
+        data &&
+        data.summary &&
+        typeof data.summary === 'string' &&
+        data.summary.length >= 75 &&
+        !data.summary.startsWith('• ')
+      ) {
         map[doc.id] = data.summary;
       }
     });
-    console.log(`[Firestore] Loaded ${Object.keys(map).length} AI summaries from Cloud Firestore.`);
+    console.log(`[Firestore] Loaded ${Object.keys(map).length} AI-generated narrative summaries from Cloud Firestore.`);
     return map;
   } catch (err) {
     console.warn('[Firestore] Error reading summaries from cloud:', err.message);
@@ -84,21 +90,30 @@ async function loadAllSummariesFromFirestore() {
 
 /**
  * Persists a single AI summary document to Cloud Firestore.
+ * Strictly enforces that only genuine AI-generated summaries are stored.
  */
 async function saveSummaryToFirestore(id, summary, metadata = {}) {
   const database = initFirestore();
   if (!database || !id || !summary) return;
 
+  const trimmed = summary.trim();
+  // Reject any heuristic bullets, non-AI content, or stubs
+  if (!metadata.isAiGenerated || trimmed.startsWith('• ') || trimmed.length < 75) {
+    return;
+  }
+
   try {
     await database.collection('ai_summaries').doc(id).set({
-      summary: summary.trim(),
+      summary: trimmed,
       title: metadata.title || '',
       category: metadata.category || '',
       player: metadata.player || null,
       state: metadata.state || null,
       discom: metadata.discom || null,
+      isAiGenerated: true,
       updatedAt: new Date().toISOString(),
     }, { merge: true });
+    console.log(`[Firestore] Saved genuine AI summary for "${(metadata.title || id).slice(0, 40)}" to Cloud Firestore.`);
   } catch (err) {
     console.warn(`[Firestore] Failed saving summary ${id}:`, err.message);
   }

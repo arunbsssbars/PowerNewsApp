@@ -18,8 +18,14 @@ void main() {
   group('DatabaseService Tests', () {
     late DatabaseService dbService;
 
-    setUp(() {
+    setUp(() async {
       dbService = DatabaseService();
+      try {
+        final db = await dbService.database;
+        await db.delete('articles');
+        await db.delete('search_history');
+        await db.delete('sync_meta');
+      } catch (_) {}
     });
 
     test('Upsert and retrieve articles', () async {

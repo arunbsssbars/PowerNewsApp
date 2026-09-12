@@ -94,7 +94,7 @@ function getActiveArticles({ requireAiSummary = true } = {}) {
   const retained = filterArticlesRetention7Days(cachedArticles);
   if (requireAiSummary) {
     const summarized = retained
-      .filter(a => a.id && aiSummaryCache[a.id] && aiSummaryCache[a.id].length >= 75)
+      .filter(a => a.id && aiSummaryCache[a.id] && aiSummaryCache[a.id].length >= 75 && !aiSummaryCache[a.id].startsWith('• '))
       .map(a => ({
         ...a,
         title: cleanHeadline(a.title),
@@ -105,7 +105,7 @@ function getActiveArticles({ requireAiSummary = true } = {}) {
   return retained.map(a => ({
     ...a,
     title: cleanHeadline(a.title),
-    summary: (a.id && aiSummaryCache[a.id] && aiSummaryCache[a.id].length >= 75)
+    summary: (a.id && aiSummaryCache[a.id] && aiSummaryCache[a.id].length >= 75 && !aiSummaryCache[a.id].startsWith('• '))
       ? aiSummaryCache[a.id]
       : cleanText(a.summary)
   }));
@@ -264,7 +264,7 @@ router.get('/article-summary', async (req, res) => {
       id, title, snippet || '', category || 'Power Sector', player, state, discom, url, articleStore.getArticles()
     );
 
-    if (id && summary) {
+    if (id && summary && !summary.startsWith('• ')) {
       aiSummaryCache[id] = summary;
       const article = articleStore.getArticles().find(a => a.id === id);
       if (article) article.summary = summary;
