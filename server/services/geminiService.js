@@ -491,6 +491,8 @@ INSTRUCTIONS:
       } catch (err) {
         if (err.message && err.message.includes('429')) {
           geminiCoolingDownUntil = Date.now() + 30000;
+          console.warn(`[Gemini AI Q&A] Quota cooling down (429). Pausing for 30s.`);
+          break; // Stop trying other models on quota error
         }
         console.warn(`[Gemini AI Q&A] Error with model ${model}:`, err.message);
       }
