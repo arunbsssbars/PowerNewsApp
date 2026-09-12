@@ -415,15 +415,20 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
         titleSpacing: 0,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
             const Text(
               'Power Sector Intelligence',
-              style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w800),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
             ),
             Text(
               '${_currentIndex + 1} of ${widget.articles.length} updates • Swipe left/right',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: 10.5,
                 fontWeight: FontWeight.w500,
                 color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
               ),
@@ -432,13 +437,19 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.format_size_rounded, size: 21),
+            icon: const Icon(Icons.format_size_rounded, size: 20),
             tooltip: 'Customize Font & Style',
+            visualDensity: VisualDensity.compact,
+            padding: const EdgeInsets.all(6),
+            constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
             onPressed: () => _showTypographyBottomSheet(context),
           ),
           IconButton(
-            icon: const Icon(Icons.share_outlined, size: 20),
+            icon: const Icon(Icons.share_outlined, size: 19),
             tooltip: 'Share Briefing',
+            visualDensity: VisualDensity.compact,
+            padding: const EdgeInsets.all(6),
+            constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
             onPressed: () => _shareArticle(context, currentArticle),
           ),
           Consumer<NewsProvider>(
@@ -448,9 +459,12 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
                 icon: Icon(
                   isBookmarked ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
                   color: isBookmarked ? const Color(0xFFD97706) : null,
-                  size: 22,
+                  size: 21,
                 ),
                 tooltip: isBookmarked ? 'Remove Bookmark' : 'Bookmark Article',
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.all(6),
+                constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
                 onPressed: () {
                   prov.toggleBookmark(currentArticle);
                   ScaffoldMessenger.of(context).showSnackBar(

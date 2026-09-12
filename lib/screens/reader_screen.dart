@@ -411,11 +411,13 @@ class _ReaderScreenState extends State<ReaderScreen> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded),
           tooltip: 'Back',
+          visualDensity: VisualDensity.compact,
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: Center(
+        title: FittedBox(
+          fit: BoxFit.scaleDown,
           child: Container(
-            padding: const EdgeInsets.all(3),
+            padding: const EdgeInsets.all(2.5),
             decoration: BoxDecoration(
               color: (isSystemDark ? Colors.white : Colors.black).withOpacity(0.08),
               borderRadius: BorderRadius.circular(20),
@@ -443,8 +445,11 @@ class _ReaderScreenState extends State<ReaderScreen> {
           // Appearance Settings (in Reader mode)
           if (!_isWebViewMode)
             IconButton(
-              icon: const Icon(Icons.format_size_rounded, size: 21),
+              icon: const Icon(Icons.format_size_rounded, size: 20),
               tooltip: 'Appearance',
+              visualDensity: VisualDensity.compact,
+              padding: const EdgeInsets.all(6),
+              constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
               onPressed: () => _showAppearanceSheet(context),
             ),
 
@@ -456,9 +461,12 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 icon: Icon(
                   isBookmarked ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
                   color: isBookmarked ? const Color(0xFFD97706) : null,
-                  size: 21,
+                  size: 20,
                 ),
                 tooltip: isBookmarked ? 'Remove Bookmark' : 'Bookmark',
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.all(6),
+                constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
                 onPressed: () => prov.toggleBookmark(article),
               );
             },
@@ -466,16 +474,68 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
           // Share Button
           IconButton(
-            icon: const Icon(Icons.share_outlined, size: 20),
+            icon: const Icon(Icons.share_outlined, size: 19),
             tooltip: 'Share',
+            visualDensity: VisualDensity.compact,
+            padding: const EdgeInsets.all(6),
+            constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
             onPressed: _shareArticle,
           ),
 
-          // Open in Browser
-          IconButton(
-            icon: const Icon(Icons.open_in_new_rounded, size: 19),
-            tooltip: 'Open in Browser',
-            onPressed: _openInExternalBrowser,
+          // More Options Menu (Open in Browser, Copy Link, Reload)
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert_rounded, size: 20),
+            tooltip: 'More Options',
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+            onSelected: (val) {
+              if (val == 'browser') {
+                _openInExternalBrowser();
+              } else if (val == 'copy') {
+                Clipboard.setData(ClipboardData(text: article.url));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    duration: Duration(seconds: 2),
+                    content: Text('📋 Link copied to clipboard!'),
+                  ),
+                );
+              } else if (val == 'refresh_web') {
+                _webViewController.reload();
+              }
+            },
+            itemBuilder: (ctx) => [
+              const PopupMenuItem(
+                value: 'browser',
+                child: Row(
+                  children: [
+                    Icon(Icons.open_in_new_rounded, size: 18),
+                    SizedBox(width: 10),
+                    Text('Open in Browser', style: TextStyle(fontSize: 13)),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'copy',
+                child: Row(
+                  children: [
+                    Icon(Icons.copy_rounded, size: 18),
+                    SizedBox(width: 10),
+                    Text('Copy Article Link', style: TextStyle(fontSize: 13)),
+                  ],
+                ),
+              ),
+              if (_isWebViewMode)
+                const PopupMenuItem(
+                  value: 'refresh_web',
+                  child: Row(
+                    children: [
+                      Icon(Icons.refresh_rounded, size: 18),
+                      SizedBox(width: 10),
+                      Text('Reload Page', style: TextStyle(fontSize: 13)),
+                    ],
+                  ),
+                ),
+            ],
           ),
           const SizedBox(width: 4),
         ],
@@ -496,15 +556,16 @@ class _ReaderScreenState extends State<ReaderScreen> {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
           color: isActive ? const Color(0xFF2563EB) : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
         ),
         child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 13, color: isActive ? Colors.white : Colors.grey),
-            const SizedBox(width: 4),
+            Icon(icon, size: 12.5, color: isActive ? Colors.white : Colors.grey),
+            const SizedBox(width: 3.5),
             Text(
               label,
               style: TextStyle(
