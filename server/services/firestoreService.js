@@ -1,7 +1,5 @@
 const fs = require('fs');
 const path = require('path');
-const { initializeApp, cert, getApps } = require('firebase-admin/app');
-const { getFirestore } = require('firebase-admin/firestore');
 
 let db = null;
 let isInitialized = false;
@@ -10,6 +8,9 @@ function initFirestore() {
   if (isInitialized) return db;
 
   try {
+    const { initializeApp, cert, getApps } = require('firebase-admin/app');
+    const { getFirestore } = require('firebase-admin/firestore');
+
     let serviceAccount = null;
 
     // 1. Try environment variable containing JSON string
