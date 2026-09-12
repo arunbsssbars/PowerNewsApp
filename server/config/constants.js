@@ -1,37 +1,23 @@
 const path = require('path');
 
-// Server Port
-const PORT = process.env.PORT || process.env.SERVER_PORT || 3000;
-const SERVER_PORT = PORT;
+// Server Port (Dynamic in production, e.g. Render sets PORT=10000)
+const PORT = process.env.PORT || 3000;
 
-// Paths & Caches
+// Path to AI Summaries Disk Cache
 const CACHE_FILE = path.join(__dirname, '..', '..', 'ai-summaries-cache.json');
-const API_HEALTH_PATH = process.env.API_HEALTH_PATH || '/api/health';
-const API_TIMEOUT_SECONDS = parseInt(process.env.API_TIMEOUT_SECONDS, 10) || 4;
 
-// App Environment & Feature Flags
-const APP_ENV = process.env.APP_ENV || 'production';
-const DEBUG_LOGGING = process.env.DEBUG_LOGGING === 'true';
+// Article Retention Window: 7 days in milliseconds
+const RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 
-// Article Retention Window
-const ARTICLE_RETENTION_DAYS = parseInt(process.env.ARTICLE_RETENTION_DAYS, 10) || 7;
-const RETENTION_MS = ARTICLE_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+// Default articles per page (matches Flutter mobile client default of 15)
+const DEFAULT_PAGE_SIZE = 15;
 
-// Maximum AI summaries to keep in memory before pruning old entries
+// Maximum AI summaries to keep in memory
 const MAX_CACHED_SUMMARIES = 2000;
 
-// Pagination & Digest Constants
-const PAGE_SIZE = parseInt(process.env.PAGE_SIZE, 10) || 25;
-const DEFAULT_PAGE_SIZE = PAGE_SIZE;
-const DIGEST_MAX_ARTICLES = parseInt(process.env.DIGEST_MAX_ARTICLES, 10) || 20;
-
-// Auto-refresh & Background Audio
-const AUTO_REFRESH_INTERVAL_MINUTES = parseInt(process.env.AUTO_REFRESH_INTERVAL_MINUTES, 10) || 2;
-const BGM_VOLUME = parseFloat(process.env.BGM_VOLUME) || 0.12;
-
-// Gemini Rate Limit & Batching Constants
+// Gemini Rate Limit & Batching Constants (tuned for free-tier 15 RPM safety)
 const GEMINI_BATCH_SIZE = 1;
-const GEMINI_WAVE_DELAY_MS = 5000; // 1 per 5s = 12 RPM (safely under free-tier 15 RPM cap)
+const GEMINI_WAVE_DELAY_MS = 5000;
 const GEMINI_SAVE_EVERY = 5;
 
 // Scraper Constants
@@ -47,20 +33,10 @@ const APP_REDIRECT_URL_RE = /\/\/(?:play\.google\.com|apps\.apple\.com|itunes\.a
 
 module.exports = {
   PORT,
-  SERVER_PORT,
   CACHE_FILE,
-  API_HEALTH_PATH,
-  API_TIMEOUT_SECONDS,
-  APP_ENV,
-  DEBUG_LOGGING,
-  ARTICLE_RETENTION_DAYS,
   RETENTION_MS,
-  MAX_CACHED_SUMMARIES,
-  PAGE_SIZE,
   DEFAULT_PAGE_SIZE,
-  DIGEST_MAX_ARTICLES,
-  AUTO_REFRESH_INTERVAL_MINUTES,
-  BGM_VOLUME,
+  MAX_CACHED_SUMMARIES,
   GEMINI_BATCH_SIZE,
   GEMINI_WAVE_DELAY_MS,
   GEMINI_SAVE_EVERY,
