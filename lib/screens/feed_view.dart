@@ -6,6 +6,7 @@ import '../widgets/city_filter_sheet.dart';
 import '../widgets/news_card.dart';
 import '../widgets/morning_digest_card.dart';
 import '../widgets/persona_selector.dart';
+import '../widgets/notifications_sheet.dart';
 
 class FeedView extends StatefulWidget {
   const FeedView({super.key});
@@ -124,6 +125,9 @@ class _FeedViewState extends State<FeedView> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<NewsProvider>();
+    if (provider.searchQuery.isEmpty && _searchController.text.isNotEmpty) {
+      _searchController.clear();
+    }
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final detectedCity = provider.detectedCity ?? 'Delhi / NCR';
     final isCityFiltered = provider.selectedCity != 'All Cities';
@@ -137,152 +141,104 @@ class _FeedViewState extends State<FeedView> {
             controller: _scrollController,
             physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
             slivers: [
-              // Sleek Minimal Search Bar (Fixed first sliver, 0 layout shift)
+              // Premium Integrated Search & Location Bar
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 6),
                   child: Container(
                     decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF111827) : Colors.white,
+                      color: isDark ? const Color(0xFF161B22) : Colors.white,
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(
-                        color: isDark ? const Color(0xFF1F2D47) : const Color(0xFFE2E8F0),
+                        color: isDark ? const Color(0xFF263040) : const Color(0xFFE2E8F0),
                         width: 1,
                       ),
                     ),
-                    child: TextField(
-                      controller: _searchController,
-                      onChanged: (val) => provider.setSearchQuery(val),
-                      style: TextStyle(
-                        fontSize: 13.5,
-                        color: isDark ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A),
-                      ),
-                      decoration: InputDecoration(
-                        hintText: 'Search player, tariff, substation, tender...',
-                        hintStyle: TextStyle(
-                          fontSize: 13,
-                          color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
-                        ),
-                        prefixIcon: Icon(
+                    child: Row(
+                      children: [
+                        const SizedBox(width: 12),
+                        Icon(
                           Icons.search_rounded,
-                          size: 20,
+                          size: 19,
                           color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
                         ),
-                        suffixIcon: _searchController.text.isNotEmpty
-                            ? IconButton(
-                                icon: const Icon(Icons.clear_rounded, size: 18),
-                                onPressed: () {
-                                  _searchController.clear();
-                                  provider.setSearchQuery('');
-                                },
-                              )
-                            : null,
-                        border: InputBorder.none,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-
-              // Simplified & Modern GPS Location Bar (Compact & Clean)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 2, 16, 4),
-                  child: Row(
-                    children: [
-                      // Location Pill (Tap to Choose Any City)
-                      Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(18),
-                          onTap: () => _showCityFilterSheet(context),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5.5),
-                            decoration: BoxDecoration(
-                              color: isCityFiltered
-                                  ? const Color(0xFF2563EB).withOpacity(isDark ? 0.22 : 0.1)
-                                  : (isDark ? const Color(0xFF111827) : const Color(0xFFF1F5F9)),
-                              borderRadius: BorderRadius.circular(18),
-                              border: Border.all(
-                                color: isCityFiltered
-                                    ? const Color(0xFF2563EB).withOpacity(0.4)
-                                    : (isDark ? const Color(0xFF1F2D47) : const Color(0xFFE2E8F0)),
-                              ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextField(
+                            controller: _searchController,
+                            onChanged: (val) => provider.setSearchQuery(val),
+                            style: TextStyle(
+                              fontSize: 13.5,
+                              color: isDark ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A),
                             ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  isCityFiltered ? provider.selectedCity : detectedCity,
-                                  style: TextStyle(
-                                    fontSize: 11.5,
-                                    fontWeight: FontWeight.w700,
+                            decoration: InputDecoration(
+                              hintText: 'Search player, tariff, tender...',
+                              hintStyle: TextStyle(
+                                fontSize: 13,
+                                color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                              ),
+                              border: InputBorder.none,
+                              isDense: true,
+                              contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                          ),
+                        ),
+                        if (_searchController.text.isNotEmpty)
+                          IconButton(
+                            icon: const Icon(Icons.clear_rounded, size: 18),
+                            visualDensity: VisualDensity.compact,
+                            onPressed: () {
+                              _searchController.clear();
+                              provider.setSearchQuery('');
+                            },
+                          ),
+                        Container(
+                          height: 22,
+                          width: 1,
+                          color: isDark ? const Color(0xFF263040) : const Color(0xFFE2E8F0),
+                        ),
+                        // Integrated Location Filter Pill
+                        Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            borderRadius: const BorderRadius.horizontal(right: Radius.circular(14)),
+                            onTap: () => _showCityFilterSheet(context),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.place_rounded,
+                                    size: 14,
                                     color: isCityFiltered
                                         ? const Color(0xFF2563EB)
-                                        : (isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B)),
+                                        : (isDark ? const Color(0xFF38BDF8) : const Color(0xFF2563EB)),
                                   ),
-                                ),
-                                const SizedBox(width: 3),
-                                const Icon(Icons.keyboard_arrow_down_rounded, size: 14, color: Colors.grey),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-
-                      const Spacer(),
-
-                      // Quick City Toggle Pill (Local City vs Pan-India)
-                      Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(16),
-                          onTap: () {
-                            if (provider.selectedCity == detectedCity) {
-                              provider.setCityFilter('All Cities');
-                            } else {
-                              provider.setCityFilter(detectedCity);
-                            }
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                            decoration: BoxDecoration(
-                              color: provider.selectedCity == detectedCity
-                                  ? const Color(0xFF2563EB)
-                                  : (isDark ? const Color(0xFF111827) : Colors.white),
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: provider.selectedCity == detectedCity
-                                    ? const Color(0xFF2563EB)
-                                    : (isDark ? const Color(0xFF1F2D47) : const Color(0xFFE2E8F0)),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    isCityFiltered ? provider.selectedCity : detectedCity,
+                                    style: TextStyle(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: isCityFiltered
+                                          ? const Color(0xFF2563EB)
+                                          : (isDark ? const Color(0xFFE2E8F0) : const Color(0xFF1E293B)),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 2),
+                                  Icon(
+                                    Icons.keyboard_arrow_down_rounded,
+                                    size: 15,
+                                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                  ),
+                                ],
                               ),
                             ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  provider.selectedCity == detectedCity ? Icons.check_circle_rounded : Icons.radar_rounded,
-                                  size: 12,
-                                  color: provider.selectedCity == detectedCity ? Colors.white : const Color(0xFF2563EB),
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  provider.selectedCity == detectedCity ? 'Local Feed' : 'Filter $detectedCity',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w700,
-                                    color: provider.selectedCity == detectedCity
-                                        ? Colors.white
-                                        : (isDark ? const Color(0xFFCBD5E1) : const Color(0xFF334155)),
-                                  ),
-                                ),
-                              ],
-                            ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -449,11 +405,13 @@ class _FeedViewState extends State<FeedView> {
                 ),
 
               // News Articles List / Loading / Error States
-              if ((provider.isLoading && provider.articles.isEmpty) || provider.isFilterLoading)
+              if ((provider.isLoading && provider.articles.isEmpty) ||
+                  provider.isFilterLoading ||
+                  (!provider.hasInitialDataLoaded && provider.articles.isEmpty))
                 SliverList(
                   delegate: SliverChildBuilderDelegate(
                     (context, index) => _buildShimmerSkeletonCard(isDark),
-                    childCount: 3,
+                    childCount: 4,
                   ),
                 )
               else if (provider.errorMessage != null && provider.articles.isEmpty)
@@ -538,24 +496,41 @@ class _FeedViewState extends State<FeedView> {
                           ),
                           const SizedBox(height: 12),
                           Text(
-                            provider.selectedPlayer != 'All'
-                                ? 'No direct news for ${provider.selectedPlayer}'
-                                : (provider.selectedCategory != 'All'
-                                    ? 'No updates in ${provider.selectedCategory}'
-                                    : 'No power news found matching filters'),
+                            provider.searchQuery.isNotEmpty
+                                ? 'No archived power updates for "${provider.searchQuery}"'
+                                : (provider.selectedPlayer != 'All'
+                                    ? 'No direct news for ${provider.selectedPlayer}'
+                                    : (provider.selectedCategory != 'All'
+                                        ? 'No updates in ${provider.selectedCategory}'
+                                        : 'No power news found matching filters')),
                             textAlign: TextAlign.center,
                             style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700),
                           ),
                           const SizedBox(height: 6),
                           Text(
-                            provider.selectedPlayer != 'All'
-                                ? 'Search live Indian power news archive for ${provider.selectedPlayer}:'
-                                : 'Try resetting filters to explore latest sector intelligence',
+                            provider.searchQuery.isNotEmpty
+                                ? 'Would you like to search the live web and generate AI summaries?'
+                                : (provider.selectedPlayer != 'All'
+                                    ? 'Search live Indian power news archive for ${provider.selectedPlayer}:'
+                                    : 'Try resetting filters to explore latest sector intelligence'),
                             textAlign: TextAlign.center,
                             style: TextStyle(fontSize: 12, color: Colors.grey[500]),
                           ),
                           const SizedBox(height: 16),
-                          if (provider.selectedPlayer != 'All') ...[
+                          if (provider.searchQuery.isNotEmpty) ...[
+                            ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF2563EB),
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                              icon: const Icon(Icons.travel_explore_rounded, size: 16),
+                              label: Text('Search Live Web for "${provider.searchQuery}"'),
+                              onPressed: () => provider.searchLiveWeb(provider.searchQuery),
+                            ),
+                            const SizedBox(height: 8),
+                          ] else if (provider.selectedPlayer != 'All') ...[
                             ElevatedButton.icon(
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFF2563EB),
@@ -568,8 +543,7 @@ class _FeedViewState extends State<FeedView> {
                               onPressed: () {
                                 final p = provider.selectedPlayer;
                                 final query = (p.toLowerCase() == 'schneider') ? 'Schneider Electric power India' : '$p power India';
-                                _searchController.text = p;
-                                provider.setSearchQuery(query);
+                                provider.searchLiveWeb(query);
                               },
                             ),
                             const SizedBox(height: 8),
@@ -690,7 +664,11 @@ class _FeedViewState extends State<FeedView> {
                   color: const Color(0xFF2563EB),
                   child: InkWell(
                     borderRadius: BorderRadius.circular(24),
-                    onTap: () => provider.applyNewArticles(),
+                    onTap: () {
+                      _scrollToTop();
+                      provider.applyNewArticles();
+                      NotificationsSheet.show(context);
+                    },
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                       child: Row(

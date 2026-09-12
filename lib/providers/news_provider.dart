@@ -22,6 +22,9 @@ class NewsProvider extends ChangeNotifier {
   static const String _prefGuideKey = 'has_seen_swipe_guide_v2';
   static const String _prefCustomFiltersKey = 'custom_power_filters_v1';
   static const String _prefPersonaKey = 'selected_grid_persona_v1';
+  static const String _prefSeenArticlesKey = 'powernews_seen_article_ids_v2';
+  static const String _prefReadArticlesKey = 'powernews_read_article_ids_v2';
+  static const String _prefNewArticlesKey = 'powernews_new_article_ids_v2';
   static const int _pageSize = 15;
 
   List<NewsArticle> _articles = [];
@@ -54,7 +57,11 @@ class NewsProvider extends ChangeNotifier {
   bool _isOffline = false;
   bool _noInternetOnScroll = false;
   String? _errorMessage;
-  int _newArticlesCount = 0;
+  bool _hasInitialDataLoaded = false;
+  final Set<String> _seenArticleIds = {};
+  final Set<String> _readArticleIds = {};
+  final Set<String> _newArticleIds = {};
+  final List<NewsArticle> _notificationArticles = [];
 
   VoidCallback? onScrollToTopRequested;
 
@@ -68,6 +75,8 @@ class NewsProvider extends ChangeNotifier {
   ThemeMode _themeMode = ThemeMode.light;
   bool _hasSeenSwipeGuide = false;
   int _currentNavIndex = 0;
+  DateTime? _lastNewsFetchTime;
+  static const Duration _newsCacheTtl = Duration(minutes: 10);
 
   // Getters
   int get currentNavIndex => _currentNavIndex;
@@ -83,26 +92,44 @@ class NewsProvider extends ChangeNotifier {
   Map<String, int> get sources => _sources;
 
   int get totalNewsCount {
-    if (_cachedFullList.isNotEmpty) {
-      return _cachedFullList.length;
+    int maxCount = _apiService.lastTotalCount;
+    if (_cachedFullList.length > maxCount) {
+      maxCount = _cachedFullList.length;
     }
-    return _articles.length;
+    if (_categories.isNotEmpty) {
+      final catSum = _categories.values.fold(0, (s, c) => s + c);
+      if (catSum > maxCount) {
+        maxCount = catSum;
+      }
+    }
+    if (_articles.length > maxCount) {
+      maxCount = _articles.length;
+    }
+    return maxCount > 0 ? maxCount : 288;
   }
 
-  int get totalStateNewsCount => totalNewsCount;
+  int get totalStateNewsCount {
+    if (_states.isNotEmpty) {
+      final total = _states.values.fold(0, (sum, count) => sum + count);
+      if (total > 0) return total;
+    }
+    return totalNewsCount;
+  }
 
   int get totalDiscomNewsCount {
     if (_discoms.isNotEmpty) {
-      return _discoms.values.fold(0, (sum, count) => sum + count);
+      final total = _discoms.values.fold(0, (sum, count) => sum + count);
+      if (total > 0) return total;
     }
-    return _articles.length;
+    return totalNewsCount;
   }
 
   int get totalPlayerNewsCount {
     if (_players.isNotEmpty) {
-      return _players.values.fold(0, (sum, count) => sum + count);
+      final total = _players.values.fold(0, (sum, count) => sum + count);
+      if (total > 0) return total;
     }
-    return _articles.length;
+    return totalNewsCount;
   }
 
   bool get isLoading => _isLoading;
@@ -130,7 +157,23 @@ class NewsProvider extends ChangeNotifier {
   GridPersona get selectedPersona => _selectedPersona;
   bool get personaOnlyFilter => _personaOnlyFilter;
   List<String> get recentSearches => _recentSearches;
-  int get newArticlesCount => _newArticlesCount;
+  List<NewsArticle> get notificationArticles => List.unmodifiable(_notificationArticles);
+  int get newArticlesCount => _newArticleIds.where((id) => !_readArticleIds.contains(id)).length;
+  bool isArticleNew(String id) => _newArticleIds.contains(id) && !_readArticleIds.contains(id);
+  bool get hasInitialDataLoaded => _hasInitialDataLoaded;
+  bool get isNewsCacheExpired {
+    if (_lastNewsFetchTime == null) return true;
+    return DateTime.now().difference(_lastNewsFetchTime!) > _newsCacheTtl;
+  }
+  bool get isFiltered =>
+      _selectedCategory != 'All' ||
+      (_selectedPlayer != 'All' && _selectedPlayer != 'All Players') ||
+      _selectedState != 'All States' ||
+      _selectedCity != 'All Cities' ||
+      _selectedDiscom != 'All DISCOMs' ||
+      _searchQuery.isNotEmpty ||
+      _activeCustomFilter != null ||
+      _personaOnlyFilter;
 
   NewsProvider() {
     init();
@@ -175,6 +218,19 @@ class NewsProvider extends ChangeNotifier {
         _selectedPersona = GridPersona.fromId(savedPersonaId);
       }
 
+      final savedSeen = prefs.getStringList(_prefSeenArticlesKey);
+      if (savedSeen != null && savedSeen.isNotEmpty) {
+        _seenArticleIds.addAll(savedSeen);
+      }
+      final savedRead = prefs.getStringList(_prefReadArticlesKey);
+      if (savedRead != null && savedRead.isNotEmpty) {
+        _readArticleIds.addAll(savedRead);
+      }
+      final savedNew = prefs.getStringList(_prefNewArticlesKey);
+      if (savedNew != null && savedNew.isNotEmpty) {
+        _newArticleIds.addAll(savedNew);
+      }
+
       // Load bookmarks and search history from SQLite
       _bookmarks = await _bookmarkService.getBookmarks();
       _recentSearches = await _dbService.getRecentSearches();
@@ -186,12 +242,42 @@ class NewsProvider extends ChangeNotifier {
         _articles = _cachedFullList.take(_pageSize).toList();
         _hasMore = _cachedFullList.length > _pageSize;
         _recomputeCountsFromLocalCache(cached);
+        _hasInitialDataLoaded = true;
+        _isLoading = false;
+        _lastNewsFetchTime = DateTime.now();
+
+        // Ensure all existing cached articles are marked seen so old articles are NEVER flagged new
+        if (_seenArticleIds.isEmpty) {
+          _seenArticleIds.addAll(cached.map((a) => a.id));
+          _persistNotificationState();
+        }
+
+        // Reconstitute notification articles from existing cache
+        if (_newArticleIds.isNotEmpty) {
+          final cachedMap = {for (var a in cached) a.id: a};
+          for (final id in _newArticleIds) {
+            final art = cachedMap[id];
+            if (art != null && !_notificationArticles.any((n) => n.id == id)) {
+              _notificationArticles.add(art);
+            }
+          }
+        }
+      } else {
+        _hasInitialDataLoaded = false;
+        _isLoading = true;
       }
     } catch (e) {
       debugPrint('[NewsProvider] Cache init error: $e');
     } finally {
-      _isLoading = false;
+      if (_articles.isNotEmpty) {
+        _isLoading = false;
+      }
       notifyListeners(); // Single consolidated notification!
+    }
+
+    // On first launch or empty cache, fetch immediately so user sees loader then news
+    if (_articles.isEmpty) {
+      fetchNews();
     }
 
     // 2. Smoothly warmup background network tasks after UI is painted
@@ -220,28 +306,30 @@ class NewsProvider extends ChangeNotifier {
 
   void _startAutoRefreshPolling() {
     _autoRefreshTimer?.cancel();
-    _autoRefreshTimer = Timer.periodic(const Duration(minutes: 2), (timer) async {
-      if (_articles.isEmpty || _isOffline || _isRefreshing || _isLoading) return;
+    // Background polling every 90 seconds while user is actively reading or using the app
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 90), (timer) async {
+      if (_isOffline || _isRefreshing || _isLoading) return;
       try {
-        final latestNews = await _apiService.getNews(
-          category: _selectedCategory == 'All' ? null : _selectedCategory,
-          player: (_selectedPlayer == 'All' || _selectedPlayer == 'All Players') ? null : _selectedPlayer,
-          state: _selectedState == 'All States' ? null : _selectedState,
-          city: _selectedCity == 'All Cities' ? null : _selectedCity,
-          discom: _selectedDiscom == 'All DISCOMs' ? null : _selectedDiscom,
-          search: _searchQuery.isEmpty ? null : _searchQuery,
-          limit: 25,
-        );
-        if (latestNews.isNotEmpty && _articles.isNotEmpty) {
-          final sortedLatest = _sortArticles(latestNews);
-          final currentTopId = _articles.first.id;
-          int newCount = 0;
-          for (var a in sortedLatest) {
-            if (a.id == currentTopId) break;
-            newCount++;
+        // Fetch unfiltered national grid stream to discover freshly scraped & AI-summarized articles
+        final latestNews = await _apiService.getNews(limit: 15);
+        if (latestNews.isNotEmpty && _seenArticleIds.isNotEmpty) {
+          bool hasNew = false;
+          final cutoffRecent = DateTime.now().subtract(const Duration(hours: 36));
+          for (final a in latestNews) {
+            if (!_seenArticleIds.contains(a.id)) {
+              _seenArticleIds.add(a.id);
+              // Only alert if the article has an authentic AI summary and was published recently
+              if (a.publishedAt.isAfter(cutoffRecent) && a.summary.length >= 75) {
+                _newArticleIds.add(a.id);
+                if (!_notificationArticles.any((n) => n.id == a.id)) {
+                  _notificationArticles.insert(0, a);
+                }
+                hasNew = true;
+              }
+            }
           }
-          if (newCount > 0 && newCount != _newArticlesCount) {
-            _newArticlesCount = newCount;
+          if (hasNew) {
+            _persistNotificationState();
             notifyListeners();
           }
         }
@@ -252,10 +340,49 @@ class NewsProvider extends ChangeNotifier {
   }
 
   void applyNewArticles() {
-    _newArticlesCount = 0;
-    notifyListeners();
+    clearFilters();
     fetchNews(isRefresh: true);
     onScrollToTopRequested?.call();
+  }
+
+  void markArticleAsRead(String id) {
+    _readArticleIds.add(id);
+    _newArticleIds.remove(id);
+    _persistNotificationState();
+    notifyListeners();
+  }
+
+  void markAllNotificationsAsRead() {
+    _readArticleIds.addAll(_newArticleIds);
+    _newArticleIds.clear();
+    _notificationArticles.clear();
+    _persistNotificationState();
+    notifyListeners();
+  }
+
+  void clearAllNotifications() {
+    markAllNotificationsAsRead();
+  }
+
+  void clearNewArticlesCount() {
+    markAllNotificationsAsRead();
+  }
+
+  Future<void> _persistNotificationState() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final seenList = _seenArticleIds.toList();
+      final cappedSeen = seenList.length > 350 ? seenList.sublist(seenList.length - 350) : seenList;
+      await prefs.setStringList(_prefSeenArticlesKey, cappedSeen);
+
+      final readList = _readArticleIds.toList();
+      final cappedRead = readList.length > 200 ? readList.sublist(readList.length - 200) : readList;
+      await prefs.setStringList(_prefReadArticlesKey, cappedRead);
+
+      await prefs.setStringList(_prefNewArticlesKey, _newArticleIds.toList());
+    } catch (e) {
+      debugPrint('[NewsProvider] Error persisting notification state: $e');
+    }
   }
 
   @override
@@ -452,13 +579,45 @@ class NewsProvider extends ChangeNotifier {
       // Persist search query to SQLite history
       _dbService.saveSearchQuery(query).then((_) async {
         _recentSearches = await _dbService.getRecentSearches();
-        notifyListeners();
       });
     }
+
+    // Tier 1: Instant local in-memory search over verified cached articles (0 network latency)
+    if (_cachedFullList.isNotEmpty) {
+      _articles = _applyFiltersTo(_cachedFullList).take(_pageSize).toList();
+      _hasMore = _cachedFullList.length > _pageSize;
+      _isFilterLoading = false;
+      notifyListeners();
+    } else {
+      _isFilterLoading = true;
+      notifyListeners();
+      fetchNews();
+    }
+  }
+
+  Future<void> searchLiveWeb(String query) async {
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) return;
+
     _isFilterLoading = true;
-    _articles.clear();
     notifyListeners();
-    fetchNews();
+
+    try {
+      final liveResults = await _apiService.searchTopic(trimmed);
+      if (liveResults.isNotEmpty) {
+        _articles = _sortArticles(liveResults);
+        _hasMore = false;
+        await _cacheService.cacheArticles(liveResults);
+        final allCached = await _cacheService.getCachedArticles();
+        _cachedFullList = _applyFiltersTo(allCached);
+        _recomputeCountsFromLocalCache(allCached);
+      }
+    } catch (e) {
+      debugPrint('[NewsProvider] Error searching live web: $e');
+    } finally {
+      _isFilterLoading = false;
+      notifyListeners();
+    }
   }
 
   Future<void> clearSearchHistory() async {
@@ -488,7 +647,7 @@ class NewsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void clearFilters() {
+  void resetFiltersInMemory({bool notify = true}) {
     _selectedCategory = 'All';
     _selectedPlayer = 'All';
     _selectedState = 'All States';
@@ -498,16 +657,45 @@ class NewsProvider extends ChangeNotifier {
     _personaOnlyFilter = false;
     _activeCustomFilter = null;
     _searchQuery = '';
-    _isFilterLoading = true;
-    _articles.clear();
-    notifyListeners();
-    fetchNews();
+    _isFilterLoading = false;
+
+    if (_cachedFullList.isNotEmpty) {
+      _articles = _applyFiltersTo(_cachedFullList).take(_pageSize).toList();
+      _hasMore = _cachedFullList.length > _pageSize;
+      _errorMessage = null;
+    } else {
+      _cacheService.getCachedArticles().then((cached) {
+        if (cached.isNotEmpty) {
+          _cachedFullList = _applyFiltersTo(cached);
+          _articles = _cachedFullList.take(_pageSize).toList();
+          _hasMore = _cachedFullList.length > _pageSize;
+          notifyListeners();
+        } else {
+          fetchNews();
+        }
+      });
+    }
+
+    if (notify) {
+      notifyListeners();
+    }
   }
 
-  void clearAllFilters() => clearFilters();
+  void clearFilters({bool reloadFromNetwork = false}) {
+    resetFiltersInMemory(notify: !reloadFromNetwork);
+    if (reloadFromNetwork) {
+      _isFilterLoading = true;
+      _articles.clear();
+      notifyListeners();
+      fetchNews();
+    }
+  }
 
-  void clearAllFiltersAndScrollTop() {
-    clearFilters();
+  void clearAllFilters({bool reloadFromNetwork = false}) =>
+      clearFilters(reloadFromNetwork: reloadFromNetwork);
+
+  void clearAllFiltersAndScrollTop({bool reloadFromNetwork = false}) {
+    clearFilters(reloadFromNetwork: reloadFromNetwork);
     onScrollToTopRequested?.call();
   }
 
@@ -751,6 +939,19 @@ class NewsProvider extends ChangeNotifier {
           return false;
         }
       }
+      // Clean Summary Quality Gate: Only display articles with rich, authentic summaries
+      final sum = a.summary.trim();
+      if (sum.length < 75) {
+        return false;
+      }
+      if (sum.toLowerCase() == a.title.trim().toLowerCase()) {
+        return false;
+      }
+      if (sum.contains('prohibited content policy') ||
+          sum.contains('all rights reserved') ||
+          sum.startsWith('• A global renewable energy power plant step')) {
+        return false;
+      }
       return true;
     }).toList();
 
@@ -783,7 +984,16 @@ class NewsProvider extends ChangeNotifier {
         limit: _pageSize,
       );
 
-      final sorted = _sortArticles(news);
+      // Filter out low-grade stubs so feed contains 100% verified clean summaries
+      final cleanNews = news.where((a) {
+        final s = a.summary.trim();
+        return s.length >= 75 &&
+            s.toLowerCase() != a.title.trim().toLowerCase() &&
+            !s.contains('prohibited content policy') &&
+            !s.startsWith('• A global renewable energy power plant step');
+      }).toList();
+
+      final sorted = _sortArticles(cleanNews);
 
       if (sorted.isEmpty) {
         final allCached = await _cacheService.getCachedArticles();
@@ -801,16 +1011,59 @@ class NewsProvider extends ChangeNotifier {
         _hasMore = sorted.length == _pageSize;
         await _cacheService.cacheArticles(news);
       }
+
+      // Track genuinely new incoming articles (older articles are NEVER considered new)
+      final isUnfiltered = _selectedCategory == 'All' &&
+          (_selectedPlayer == 'All' || _selectedPlayer == 'All Players') &&
+          _selectedState == 'All States' &&
+          _selectedCity == 'All Cities' &&
+          _selectedDiscom == 'All DISCOMs' &&
+          _searchQuery.isEmpty;
+
+      if (_seenArticleIds.isEmpty) {
+        _seenArticleIds.addAll(cleanNews.map((a) => a.id));
+        _persistNotificationState();
+      } else if (isUnfiltered && isRefresh) {
+        // ONLY on global refresh: alert if genuinely new articles arrived
+        bool hasNew = false;
+        final cutoffRecent = DateTime.now().subtract(const Duration(hours: 36));
+        for (final a in cleanNews) {
+          if (!_seenArticleIds.contains(a.id)) {
+            _seenArticleIds.add(a.id);
+            if (a.publishedAt.isAfter(cutoffRecent) && a.summary.length >= 75) {
+              _newArticleIds.add(a.id);
+              if (!_notificationArticles.any((n) => n.id == a.id)) {
+                _notificationArticles.insert(0, a);
+              }
+              hasNew = true;
+            }
+          }
+        }
+        if (hasNew) {
+          _persistNotificationState();
+        }
+      } else {
+        // Category filtering, player filtering, region or search queries:
+        // Silently mark as seen so they are never flagged as new notifications
+        _seenArticleIds.addAll(cleanNews.map((a) => a.id));
+      }
+
+      _lastNewsFetchTime = DateTime.now();
       _isOffline = false;
       _isLoading = false;
       _isFilterLoading = false;
       _isRefreshing = false;
       _errorMessage = null;
+      _hasInitialDataLoaded = true;
       final allCached = await _cacheService.getCachedArticles();
-      _recomputeCountsFromLocalCache(allCached);
+      if (isUnfiltered) {
+        _cachedFullList = _applyFiltersTo(allCached.isNotEmpty ? allCached : sorted);
+      }
+      _recomputeCountsFromLocalCache(allCached.isNotEmpty ? allCached : sorted);
       notifyListeners();
     } catch (e) {
       _isOffline = true;
+      _hasInitialDataLoaded = true;
       final cached = await _cacheService.getCachedArticles();
       if (cached.isNotEmpty) {
         final filteredCached = _applyFiltersTo(cached);

@@ -62,16 +62,18 @@ class NewsArticle {
         .replaceAll('&hellip;', '...')
         .replaceAll('&#8230;', '...');
 
-    // Step 2: Strip ALL attributes first so malformed or broken tags don't leave attributes behind
-    text = text
-        .replaceAll(RegExp(r'\b(target|href|color|style|class|rel|data-[a-z-]+)=["' "'" r'][^"' "'" r']*["' "'" r']', caseSensitive: false), ' ')
-        .replaceAll(RegExp(r'\b(target|href|color)=[^ >\s]+', caseSensitive: false), ' ')
-        .replaceAll(RegExp(r'<[^>]*>'), ' ')
-        .replaceAll(RegExp(r'\b(_blank|_self|_parent|_top)\b', caseSensitive: false), ' ');
+    // Step 2: Strip ALL HTML tags completely (e.g. <a ...>, </a>, <p>, etc.)
+    text = text.replaceAll(RegExp(r'<[^>]*>'), ' ');
 
-    // Step 3: Strip stray attributes, URLs, and RSS artifacts
+    // Step 3: Strip any residual HTML attributes or fragments (e.g. href="...", target="_blank")
     text = text
-        .replaceAll(RegExp(r'https?:\/\/[^\s<>"' "'" r']+'), ' ')
+        .replaceAll(RegExp(r'\b(href|target|color|style|class|rel|data-[a-z-]+)=["' "'" r'][^"' "'" r']*["' "'" r']', caseSensitive: false), ' ')
+        .replaceAll(RegExp(r'\b(href|target|color)=[^ >\s]+', caseSensitive: false), ' ')
+        .replaceAll(RegExp(r'\b(_blank|_self|_parent|_top)\b', caseSensitive: false), ' ')
+        .replaceAll(RegExp(r'https?:\/\/[^\s<>"' "'" r']+', caseSensitive: false), ' ');
+
+    // Step 4: Strip RSS artifacts, boilerplate and excess whitespace
+    text = text
         .replaceAll(RegExp(r'View Full Coverage on Google News', caseSensitive: false), ' ')
         .replaceAll(RegExp(r'The post .*? appeared first on .*?(\.|$)', caseSensitive: false), ' ')
         .replaceAll(RegExp(r'Listen to this article', caseSensitive: false), ' ')
@@ -111,10 +113,11 @@ class NewsArticle {
     final summaryLower = rawSummary.toLowerCase();
     if (rawSummary.isEmpty ||
         rawSummary.length < 15 ||
-        summaryLower.startsWith('href=') ||
-        summaryLower.startsWith('target=') ||
+        summaryLower.contains('href=') ||
         summaryLower.contains('target=') ||
-        summaryLower.contains('_blank')) {
+        summaryLower.contains('_blank') ||
+        summaryLower.contains('<a') ||
+        summaryLower.contains('</a>')) {
       rawSummary = rawTitle;
     }
 

@@ -27,14 +27,20 @@ class NewsCard extends StatelessWidget {
         width: double.infinity,
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF151D2E) : Colors.white,
+          color: isDark ? const Color(0xFF161B22) : Colors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isDark ? const Color(0xFF222F46) : const Color(0xFFE2E8F0),
+            color: isDark ? const Color(0xFF263040) : const Color(0xFFE2E8F0),
             width: 1,
           ),
           boxShadow: isDark
-              ? []
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.2),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
               : [
                   BoxShadow(
                     color: const Color(0xFF0F172A).withOpacity(0.04),
@@ -95,6 +101,39 @@ class NewsCard extends StatelessWidget {
                                     fontSize: 10,
                                     fontWeight: FontWeight.w800,
                                     letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          // Reading Time Pill
+                          Container(
+                            margin: const EdgeInsets.only(left: 6),
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: isDark ? const Color(0xFF1F2937) : const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: isDark ? const Color(0xFF263040) : const Color(0xFFE2E8F0),
+                                width: 0.8,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.schedule_rounded,
+                                  size: 10,
+                                  color: isDark ? const Color(0xFF9DA7B3) : const Color(0xFF64748B),
+                                ),
+                                const SizedBox(width: 3),
+                                Text(
+                                  _formatReadTime(article.summary),
+                                  style: TextStyle(
+                                    color: isDark ? const Color(0xFF9DA7B3) : const Color(0xFF64748B),
+                                    fontSize: 9.5,
+                                    fontWeight: FontWeight.w600,
                                   ),
                                 ),
                               ],
@@ -185,7 +224,7 @@ class NewsCard extends StatelessWidget {
                     fontSize: 15.5,
                     height: 1.38,
                     fontWeight: FontWeight.w700,
-                    color: isDark ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A),
+                    color: isDark ? const Color(0xFFE6EDF3) : const Color(0xFF0F172A),
                   ),
                 ),
 
@@ -194,8 +233,9 @@ class NewsCard extends StatelessWidget {
                   const SizedBox(height: 6),
                   Builder(builder: (context) {
                     var cleanSummary = NewsArticle.cleanHtmlAndEntities(article.summary)
-                        .replaceAll(RegExp(r'^[•\*\-\s]+'), '')
-                        .replaceAll(RegExp(r'\n[•\*\-\s]+'), '  ')
+                        .replaceAll(RegExp(r'[•●▪▫]\s*'), '')
+                        .replaceAll(RegExp(r'\.{2,}'), '.')
+                        .replaceAll(RegExp(r'\s*\.\s*\.'), '.')
                         .replaceAll(RegExp(r'\s+'), ' ')
                         .trim();
                     final lower = cleanSummary.toLowerCase();
@@ -209,7 +249,7 @@ class NewsCard extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 13,
                         height: 1.45,
-                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                        color: isDark ? const Color(0xFF9DA7B3) : const Color(0xFF64748B),
                       ),
                     );
                   }),
@@ -224,10 +264,10 @@ class NewsCard extends StatelessWidget {
                       width: 18,
                       height: 18,
                       decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF0B0F19) : const Color(0xFFF1F5F9),
+                        color: isDark ? const Color(0xFF0D1117) : const Color(0xFFF1F5F9),
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: isDark ? const Color(0xFF222F46) : const Color(0xFFE2E8F0),
+                          color: isDark ? const Color(0xFF263040) : const Color(0xFFE2E8F0),
                         ),
                       ),
                       child: Icon(
@@ -305,5 +345,14 @@ class NewsCard extends StatelessWidget {
       ),
     ),
   );
+  }
+
+  static String _formatReadTime(String text) {
+    if (text.isEmpty) return '~20s read';
+    final words = text.trim().split(RegExp(r'\s+')).length;
+    if (words <= 60) return '~15s read';
+    if (words <= 110) return '~25s read';
+    final mins = (words / 140).ceil();
+    return '$mins min read';
   }
 }

@@ -141,12 +141,16 @@ async function scrapeFullArticle(url) {
     const $ = cheerio.load(html);
     html = null; // Mark giant raw HTML string for immediate V8 garbage collection
 
-    // Strip non-content elements
-    $('script, style, noscript, nav, header, footer, aside, form, svg, iframe, .ads, .advertisement, .social-share, .comments, .related-posts, .subscribe-box').remove();
+    // Strip non-content and marketing/boilerplate elements
+    $('script, style, noscript, nav, header, footer, aside, form, svg, iframe, .ads, .advertisement, .social-share, .comments, .related-posts, .subscribe-box, .comment-box, .newsletter, .disclaimer, .partner-content').remove();
 
     // Cascading article text selectors
     let paragraphs = [];
     const selectors = [
+      '.artText p',
+      '.artText',
+      '[data-articlebody] p',
+      '[data-articlebody]',
       'article p',
       'main p',
       '.entry-content p',
@@ -156,39 +160,61 @@ async function scrapeFullArticle(url) {
       '.article-content p',
       '.story_details p',
       '.body-content p',
-      '.artText p',
-      '.artText',
-      '[data-articlebody]',
       '.Normal',
       'p'
     ];
 
+    const isBoilerplate = (txt) => {
+      const lower = txt.toLowerCase();
+      return (
+        lower.startsWith('by commenting') ||
+        lower.startsWith('see whats happening') ||
+        lower.startsWith('see what\'s happening') ||
+        lower.startsWith('read and get insights') ||
+        lower.startsWith('explore and discuss') ||
+        lower.startsWith('recognise work that') ||
+        lower.startsWith('recognize work that') ||
+        lower.startsWith('click here') ||
+        lower.startsWith('read more') ||
+        lower.startsWith('subscribe') ||
+        lower.startsWith('follow us') ||
+        lower.startsWith('advertisement') ||
+        lower.startsWith('copyright') ||
+        lower.startsWith('sign in') ||
+        lower.startsWith('download the app') ||
+        lower.includes('prohibited content policy') ||
+        lower.includes('all rights reserved')
+      );
+    };
+
     for (const selector of selectors) {
       const elements = $(selector);
       if (elements.length >= 1) {
+        const candidateParagraphs = [];
         elements.each((_, el) => {
           const text = $(el).text().trim();
-          if (text.length > 40) {
+          if (text.length > 35 && !isBoilerplate(text)) {
             if (text.length > 300) {
               const sentences = text.split(/(?<=[.!?])\s+/);
               let chunk = '';
               for (const s of sentences) {
                 if ((chunk + ' ' + s).length > 250) {
-                  if (chunk.trim().length > 40) paragraphs.push(chunk.trim());
+                  if (chunk.trim().length > 35 && !isBoilerplate(chunk.trim())) candidateParagraphs.push(chunk.trim());
                   chunk = s;
                 } else {
                   chunk += (chunk ? ' ' : '') + s;
                 }
               }
-              if (chunk.trim().length > 40) paragraphs.push(chunk.trim());
-            } else if (
-              !/^(click here|read more|subscribe|follow us|advertisement|copyright|sign in|download the app)/i.test(text)
-            ) {
-              paragraphs.push(text);
+              if (chunk.trim().length > 35 && !isBoilerplate(chunk.trim())) candidateParagraphs.push(chunk.trim());
+            } else {
+              candidateParagraphs.push(text);
             }
           }
         });
-        if (paragraphs.length >= 2) break;
+        if (candidateParagraphs.length >= 2) {
+          paragraphs = candidateParagraphs;
+          break;
+        }
       }
     }
 

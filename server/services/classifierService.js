@@ -112,11 +112,13 @@ function cleanSummaryOutput(text) {
     .map(line => line.trim())
     .filter(line => line.length > 0)
     .map(line => {
-      let l = line.replace(/^\d+[\.\)]\s*/, '');
-      if (!l.startsWith('•') && !l.startsWith('-') && !l.startsWith('*')) {
-        return `• ${l}`;
+      if (/^[•\-\*]\s*/.test(line)) {
+        return line.replace(/^[•\-\*]\s*/, '• ');
       }
-      return l.replace(/^[-*]\s*/, '• ');
+      if (/^\d+[\.\)]\s*/.test(line)) {
+        return line.replace(/^\d+[\.\)]\s*/, '');
+      }
+      return line;
     })
     .join('\n');
 }

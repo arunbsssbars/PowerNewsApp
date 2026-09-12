@@ -20,91 +20,121 @@ class FormattedSummaryView extends StatelessWidget {
     this.city,
     this.state,
     this.title,
-    this.fontSize = 14.0,
+    this.fontSize = 16.5,
     this.fontFamily,
     this.lineHeight = 1.55,
   });
+
+  // Highlights quantitative power sector metrics (MW, GW, kV, Capex, Tariffs, etc.)
+  static final RegExp _metricRegex = RegExp(
+    r'(\b(?:Rs\.?|₹)\s*[\d,]+(?:\.\d+)?(?:\s*(?:crore|cr|lakh|billion|million|kwh|unit|per\s+unit))?\b|\b[\d,]+(?:\.\d+)?\s*(?:MW|GW|kW|kV|MU|BUs|GWh|MWh|TWh|km)\b|\b\d+(?:\.\d+)?%\b|\b\d+\s*-(?:year|month|day)\b|\b\d+\s*(?:years|months|days)\b)',
+    caseSensitive: false,
+  );
+
+  List<TextSpan> _buildHighlightedSpans(String text, TextStyle baseStyle, TextStyle highlightStyle) {
+    final List<TextSpan> spans = [];
+    int lastIndex = 0;
+
+    for (final match in _metricRegex.allMatches(text)) {
+      if (match.start > lastIndex) {
+        spans.add(TextSpan(text: text.substring(lastIndex, match.start), style: baseStyle));
+      }
+      spans.add(TextSpan(text: match.group(0), style: highlightStyle));
+      lastIndex = match.end;
+    }
+
+    if (lastIndex < text.length) {
+      spans.add(TextSpan(text: text.substring(lastIndex), style: baseStyle));
+    }
+
+    return spans;
+  }
 
   @override
   Widget build(BuildContext context) {
     final cleanSummary = NewsArticle.cleanHtmlAndEntities(summary);
     final isHeadlineDuplicate = title != null && cleanSummary.trim().toLowerCase() == title!.trim().toLowerCase();
+
+    final textColor = isDark ? const Color(0xFFE6EDF3) : const Color(0xFF1E293B);
+    final highlightColor = isDark ? const Color(0xFF38BDF8) : const Color(0xFF1D4ED8);
+
+    final baseStyle = TextStyle(
+      fontSize: fontSize,
+      fontFamily: fontFamily,
+      height: lineHeight,
+      fontWeight: FontWeight.w400,
+      color: textColor,
+      letterSpacing: 0.15,
+    );
+
+    final highlightStyle = baseStyle.copyWith(
+      fontWeight: FontWeight.w700,
+      color: highlightColor,
+    );
+
     if (cleanSummary.isEmpty || isHeadlineDuplicate) {
       return Text(
-        'This power sector update covers key grid, generation, transmission, and utility developments.',
+        'This power sector intelligence dispatch covers key grid, generation, transmission, and utility developments.',
         textAlign: TextAlign.justify,
-        style: TextStyle(
-          fontSize: fontSize,
-          fontFamily: fontFamily,
-          height: lineHeight,
-          color: isDark ? const Color(0xFFE2E8F0) : const Color(0xFF334155),
-        ),
+        style: baseStyle.copyWith(color: isDark ? const Color(0xFF9DA7B3) : const Color(0xFF64748B)),
       );
     }
 
-    // Clean any residual prefixes/headings from lines
+    // Check if the summary is explicitly formatted as multiple lines/bullets
     final rawLines = cleanSummary
         .split('\n')
         .map((l) => l.trim())
         .where((l) => l.isNotEmpty)
         .toList();
 
-    List<String> points = [];
+    final bool hasExplicitBullets = rawLines.length > 1 &&
+        rawLines.any((l) => RegExp(r'^(?:📌|⚡|🏢|🔹|🔸|•|\*|-|\d+[\.\)])\s*').hasMatch(l));
 
-    if (rawLines.length > 1) {
-      points = rawLines.map((l) {
+    if (hasExplicitBullets) {
+      // Multi-Beat Bullet Presentation
+      final points = rawLines.map((l) {
         return l
-            .replaceFirst(RegExp(r'^(📌|⚡|🏢|🔹|🔸|•|\*|-)\s*'), '')
+            .replaceFirst(RegExp(r'^(📌|⚡|🏢|🔹|🔸|•|\*|-|\d+[\.\)])\s*'), '')
             .replaceFirst(RegExp(r'^(Key Action|Metrics & Scope|Grid & Utility Impact|Action|Metrics|Scope|Impact|Overview|Key Focus|Operating Entity|Geographic Impact):\s*', caseSensitive: false), '')
+            .replaceAll(RegExp(r'[•●▪▫]\s*'), '')
+            .replaceAll(RegExp(r'\.{2,}'), '.')
+            .replaceAll(RegExp(r'\s*\.\s*\.'), '.')
             .trim();
       }).where((l) => l.length > 5).toList();
-    } else {
-      // Split single paragraph into distinct sentences
-      points = cleanSummary
-          .split(RegExp(r'(?<=[.!?])\s+'))
-          .map((s) => s.trim())
-          .map((s) => s.replaceFirst(RegExp(r'^(📌|⚡|🏢|🔹|🔸|•|\*|-)\s*'), ''))
-          .map((s) => s.replaceFirst(RegExp(r'^(Key Action|Metrics & Scope|Grid & Utility Impact|Action|Metrics|Scope|Impact|Overview|Key Focus|Operating Entity|Geographic Impact):\s*', caseSensitive: false), ''))
-          .where((s) => s.length > 5)
-          .toList();
-    }
 
-    if (points.isEmpty) {
-      points = [cleanSummary];
-    }
-
-    return SizedBox(
-      width: double.infinity,
-      child: Column(
+      return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: points.map((point) {
           return Padding(
-            padding: const EdgeInsets.only(bottom: 9),
+            padding: const EdgeInsets.only(bottom: 10),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Padding(
                   padding: EdgeInsets.only(top: fontSize * 0.45, right: 10),
                   child: Container(
-                    width: 5.5,
-                    height: 5.5,
+                    width: 6,
+                    height: 6,
                     decoration: BoxDecoration(
                       color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF2563EB),
                       shape: BoxShape.circle,
+                      boxShadow: isDark
+                          ? [
+                              BoxShadow(
+                                color: const Color(0xFF38BDF8).withOpacity(0.5),
+                                blurRadius: 4,
+                                spreadRadius: 0.5,
+                              )
+                            ]
+                          : null,
                     ),
                   ),
                 ),
                 Expanded(
-                  child: Text(
-                    point,
+                  child: RichText(
                     textAlign: TextAlign.justify,
-                    style: TextStyle(
-                      fontSize: fontSize,
-                      fontFamily: fontFamily,
-                      height: lineHeight,
-                      fontWeight: FontWeight.w400,
-                      color: isDark ? const Color(0xFFF1F5F9) : const Color(0xFF1E293B),
-                      letterSpacing: 0.1,
+                    text: TextSpan(
+                      children: _buildHighlightedSpans(point, baseStyle, highlightStyle),
                     ),
                   ),
                 ),
@@ -112,7 +142,29 @@ class FormattedSummaryView extends StatelessWidget {
             ),
           );
         }).toList(),
-      ),
+      );
+    }
+
+    // Single Paragraph Continuous Executive Narrative Prose (50–100 Words Story)
+    final cleanProse = cleanSummary
+        .replaceAll(RegExp(r'[•●▪▫]\s*'), '')
+        .replaceAll(RegExp(r'\.{2,}'), '.')
+        .replaceAll(RegExp(r'\s*\.\s*\.'), '.')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Narrative Prose with Highlighted Data Metrics (Full width, Justified)
+        RichText(
+          textAlign: TextAlign.justify,
+          text: TextSpan(
+            children: _buildHighlightedSpans(cleanProse, baseStyle, highlightStyle),
+          ),
+        ),
+      ],
     );
   }
 }
+

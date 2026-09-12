@@ -71,11 +71,10 @@ function findSimilarCachedSummary(targetTitle, targetPlayer, targetState, cached
   if (!targetTitle || !cachedArticles || cachedArticles.length === 0) return null;
   const cleanT = cleanHeadline(targetTitle);
   for (const article of cachedArticles) {
-    if (!article.id || !aiSummaryCache[article.id] || !aiSummaryCache[article.id].includes('•')) continue;
+    if (!article.id || !aiSummaryCache[article.id] || aiSummaryCache[article.id].length < 100) continue;
     const sim = calculateSimilarity(article.title, cleanT);
-    const sameEntity = (targetPlayer && targetPlayer !== 'Power Sector Stakeholder' && targetPlayer === article.player) ||
-      (targetState && targetState !== 'National / Pan-India' && targetState === article.state);
-    if (sim >= 0.45 || (sameEntity && sim >= 0.28)) {
+    // Strict match only: identical or syndicated stories across publishers (sim >= 0.88)
+    if (sim >= 0.88) {
       return aiSummaryCache[article.id];
     }
   }
@@ -86,15 +85,16 @@ function findSimilarCachedSummary(targetTitle, targetPlayer, targetState, cached
  * Generates an executive summary grounded in actual scraped publisher article content.
  */
 async function generateGeminiPowerSummary(articleId, title, snippet, category, player, state, discom, url, cachedArticles = []) {
-  if (articleId && aiSummaryCache[articleId] && aiSummaryCache[articleId].includes('•')) {
+  // Reject short or low-quality cached stubs (< 90 characters)
+  if (articleId && aiSummaryCache[articleId] && aiSummaryCache[articleId].length >= 90) {
     return aiSummaryCache[articleId];
   }
   const cleanTitle = cleanHeadline(title);
 
-  // Zero-Waste Gemini Optimization: check if a similar story already has a verified AI summary
+  // Strict check: only reuse if the exact same story exists (syndicated wire copy)
   const similarSummary = findSimilarCachedSummary(cleanTitle, player, state, cachedArticles);
   if (similarSummary) {
-    console.log(`[Gemini AI] Reusing existing summary for similar story: "${cleanTitle.slice(0, 40)}" (0 API calls spent)`);
+    console.log(`[Gemini AI] Reusing identical syndicated story summary for: "${cleanTitle.slice(0, 40)}"`);
     if (articleId) {
       aiSummaryCache[articleId] = similarSummary;
       saveAiSummaryCache();
@@ -124,7 +124,7 @@ async function generateGeminiPowerSummary(articleId, title, snippet, category, p
   if (ai && Date.now() > geminiCoolingDownUntil) {
     const prompt = `You are the Chief Editor and Senior Power Sector Intelligence Analyst for PowerNews India. Your audience includes leadership at CEA, CERC, State DISCOMs, Power PSUs (NTPC, PGCIL, SECI), Private Utilities (Tata Power, Adani, JSW), and Grid OEMs (Siemens, Hitachi Energy, BHEL, GE Vernova).
 
-Read the ACTUAL ARTICLE CONTENT below and synthesize an executive narrative briefing of exactly 100 to 150 words. Structure the story into 3 to 4 cohesive, sequentially flowing narrative beats that tell the complete story from start to finish:
+Read the ACTUAL ARTICLE CONTENT below and synthesize an ultra-crisp executive narrative story of strictly 50 to 100 words. Deliver the briefing as a single, fluid journalistic paragraph that reads like an opening dispatch from Bloomberg Energy or Reuters.
 
 ARTICLE METADATA:
 Headline: ${cleanTitle}
@@ -137,15 +137,15 @@ ${contentToAnalyze}
 """
 
 STRICT EDITORIAL GUIDELINES:
-- Output exactly 3 or 4 bullet points, each on a new line starting with "• ".
-- Total word count across all bullets MUST be between 100 and 150 words.
-- Beat 1 (The Catalyst): The core event, regulatory ruling, PPA, capacity addition, or tender (What happened).
-- Beat 2 (Data & Metrics): Key numbers, capacities (MW/GW), voltage ratings (kV), project capex (₹ Crore), tariffs (₹/kWh), or contract partners (The anatomy).
-- Beat 3 (Operational Context): Operational, grid-level, or utility mechanics mentioned in the article.
-- Beat 4 (Strategic Sector Impact): Why it matters for grid stability, renewable integration, DISCOM health, or power supply outlook (The significance).
-- Tone: Executive business-intelligence tone (authoritative, crisp, factual like Bloomberg Energy or Reuters).
-- Grounding: Every sentence must be 100% strictly grounded in the provided article content. Never hallucinate or invent figures.
-- Do NOT include markdown bold titles, preambles, introductory filler, or section labels. Output ONLY the bullet lines starting with "• ".`;
+- Output ONLY a single, continuous paragraph of narrative prose.
+- DO NOT use bullet points ("•", "-", "*"), numbers ("1.", "2."), bold section titles, preambles, or conversational filler.
+- Total word count MUST strictly be between 50 and 100 words.
+- Weave the complete story into 3 to 4 tightly linked sentences:
+    1. The Catalyst: The core event, contract award, regulatory order, or capacity commissioning.
+    2. Data & Metrics: Key figures, capacity (MW/GW), capex (₹ Crore), voltage (kV), tariff (₹/kWh), or partners.
+    3. Operational & Strategic Impact: Technical scope and its broader significance for grid reliability or power supply.
+- Tone: Executive business-intelligence tone (active voice, dense with facts, authoritative).
+- Grounding: 100% strictly grounded in the provided article content. Never hallucinate, extrapolate, or invent numbers.`;
 
     const envModel = process.env.GEMINI_MODEL ? process.env.GEMINI_MODEL.trim() : null;
     const modelsToTry = envModel
@@ -161,25 +161,26 @@ STRICT EDITORIAL GUIDELINES:
 
         let aiText = (response.text || '').trim();
         aiText = cleanSummaryOutput(aiText);
-        if (aiText && aiText.length > 50) {
+        if (aiText && aiText.length > 40) {
           if (articleId) {
             aiSummaryCache[articleId] = aiText;
             saveAiSummaryCache();
           }
           const wordCount = aiText.split(/\s+/).filter(Boolean).length;
-          console.log(`[Gemini AI] Synthesized ${aiText.split('\n').length} narrative beats (${wordCount} words) for "${cleanTitle.slice(0, 40)}" via ${model}`);
+          console.log(`[Gemini AI] Synthesized narrative story (${wordCount} words) for "${cleanTitle.slice(0, 40)}" via ${model}`);
           return aiText;
         }
       } catch (err) {
         if (err.message && err.message.includes('429')) {
-          geminiCoolingDownUntil = Date.now() + 30000; // 30s pause
-          console.warn(`[Gemini AI] Quota cooling down (429). Pausing for 30s.`);
-          break; // Don't try next model — same quota applies
+          console.warn(`[Gemini AI] Quota limit on model ${model}. Trying fallback model...`);
+          continue;
         } else {
           console.warn(`[Gemini AI] Error with model ${model} for "${cleanTitle.slice(0, 40)}":`, err.message);
         }
       }
     }
+    // If all models hit quota or failed, brief cooldown before next attempt
+    geminiCoolingDownUntil = Date.now() + 20000;
   }
 
   // Step 3: Pure Content-Grounded Heuristic Fallback

@@ -16,38 +16,42 @@ class ApiService {
     'x-api-key': _clientSecret,
   };
 
+  static const String renderCloudHost = 'https://powernewsapp-backend.onrender.com';
+
   static const List<String> candidateHosts = [
-    // 1. Production Render Cloud URL (Works worldwide on 4G/5G/Wi-Fi)
-    'https://powernewsapp-backend.onrender.com',
-    // 2. ADB Reverse Tunnel (Instantaneous, zero firewall restrictions over Wi-Fi debugging)
+    // 1. Production Render Cloud URL (Primary)
+    renderCloudHost,
+    // 2. Localhost fallback (only when user manually runs node server in terminal)
     'http://127.0.0.1:3000',
     'http://localhost:3000',
-    // 3. Direct Wi-Fi LAN / Hotspot
-    'http://172.20.10.11:3000',
-    // 3. Tailscale Mesh Network
-    'http://100.98.130.99:3000',
-    // 4. Alternate Wi-Fi Networks
-    'http://10.82.41.239:3000',
-    'http://192.168.1.12:3000',
-    'http://192.168.1.59:3000',
     'http://10.0.2.2:3000',
+    'http://172.20.10.11:3000',
+    'http://100.98.130.99:3000',
   ];
 
-  String _activeHost = 'http://127.0.0.1:3000';
+  String _activeHost = renderCloudHost;
+  int _lastTotalCount = 0;
 
   String get activeHost => _activeHost;
+  int get lastTotalCount => _lastTotalCount;
 
   void setCustomHost(String host) {
     _activeHost = host.trim();
   }
 
   Future<bool> checkAndSelectHost() async {
-    // Probe candidate hosts in parallel with 4s timeout for cloud TLS handshake
+    // Probe candidate hosts in parallel with 8s timeout for cloud handshake
     final List<Future<String?>> probes = candidateHosts.map((host) async {
       try {
         final uri = Uri.parse('$host/api/health');
-        final res = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 4));
+        final res = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 8));
         if (res.statusCode == 200) {
+          try {
+            final hData = json.decode(utf8.decode(res.bodyBytes));
+            if (hData is Map && hData['totalArticles'] is num) {
+              _lastTotalCount = (hData['totalArticles'] as num).toInt();
+            }
+          } catch (_) {}
           return host;
         }
       } catch (_) {}
@@ -66,11 +70,8 @@ class ApiService {
 
     if (workingHost != null) {
       _activeHost = workingHost;
-      debugPrint('[ApiService] Connected successfully to host: $_activeHost');
       return true;
     }
-
-    _activeHost = candidateHosts.first;
     return false;
   }
 
@@ -81,35 +82,26 @@ class ApiService {
     String? city,
     String? discom,
     String? search,
-    String? source,
-    int limit = 50,
     int page = 1,
+    int limit = 15,
   }) async {
     final queryParams = <String, String>{
-      'limit': limit.toString(),
       'page': page.toString(),
+      'limit': limit.toString(),
     };
-    if (category != null && category.isNotEmpty && category != 'All') {
-      queryParams['category'] = category;
-    }
-    if (player != null && player.isNotEmpty && player != 'All Players' && player != 'All') {
-      queryParams['player'] = player;
-    }
-    if (state != null && state.isNotEmpty && state != 'All States') {
-      queryParams['state'] = state;
-    }
-    if (city != null && city.isNotEmpty && city != 'All Cities') {
-      queryParams['city'] = city;
-    }
-    if (discom != null && discom.isNotEmpty && discom != 'All DISCOMs') {
-      queryParams['discom'] = discom;
-    }
-    if (search != null && search.trim().isNotEmpty) {
-      queryParams['search'] = search.trim();
-    }
-    if (source != null && source.isNotEmpty && source != 'All Sources') {
-      queryParams['source'] = source;
-    }
+    if (category != null) queryParams['category'] = category;
+    if (player != null) queryParams['player'] = player;
+    if (state != null) queryParams['state'] = state;
+    if (city != null) queryParams['city'] = city;
+    if (discom != null) queryParams['discom'] = discom;
+    if (search != null && search.isNotEmpty) queryParams['search'] = search;
+
+    final isUnfiltered = category == null &&
+        player == null &&
+        state == null &&
+        city == null &&
+        discom == null &&
+        (search == null || search.isEmpty);
 
     List<String> hostsToTry = [_activeHost, ...candidateHosts.where((h) => h != _activeHost)];
 
@@ -122,6 +114,13 @@ class ApiService {
           _activeHost = host;
           final data = json.decode(utf8.decode(response.bodyBytes));
           if (data is Map && data.containsKey('articles')) {
+            if (data.containsKey('total') && data['total'] is num) {
+              final t = (data['total'] as num).toInt();
+              // Only overwrite total count if this is an unfiltered query across all power sectors
+              if (isUnfiltered && t > 0) {
+                _lastTotalCount = t;
+              }
+            }
             final List<dynamic> articlesJson = data['articles'] ?? [];
             return articlesJson.map((json) => NewsArticle.fromJson(json)).toList();
           }
@@ -504,6 +503,26 @@ class ApiService {
       debugPrint('[ApiService] Error asking Gemini Grid QA: $e');
     }
     return null;
+  }
+
+  Future<List<NewsArticle>> searchTopic(String query) async {
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) return [];
+
+    try {
+      final uri = Uri.parse('$_activeHost/api/search-topic?q=${Uri.encodeComponent(trimmed)}');
+      final res = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 12));
+      if (res.statusCode == 200) {
+        final Map<String, dynamic> data = json.decode(utf8.decode(res.bodyBytes));
+        if (data['articles'] is List) {
+          final List<dynamic> list = data['articles'];
+          return list.map((json) => NewsArticle.fromJson(json as Map<String, dynamic>)).toList();
+        }
+      }
+    } catch (e) {
+      debugPrint('[ApiService] Error in live searchTopic: $e');
+    }
+    return [];
   }
 
   Future<bool> refreshBackend() async {

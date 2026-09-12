@@ -26,9 +26,9 @@ class ArticleDetailScreen extends StatefulWidget {
 class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
   late PageController _pageController;
   late int _currentIndex;
-  double _summaryFontSize = 14.5;
-  String _summaryFontFamily = 'Default';
-  double _summaryLineHeight = 1.55;
+  double _summaryFontSize = 16.5; // Large
+  String _summaryFontFamily = 'Default'; // Modern Sans
+  double _summaryLineHeight = 1.55; // Standard
   final Set<String> _loadingAiArticleIds = {};
   final Map<String, String> _aiSummaries = {};
 
@@ -55,7 +55,7 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
     try {
       final prefs = await SharedPreferences.getInstance();
       setState(() {
-        _summaryFontSize = prefs.getDouble('summary_font_size') ?? 14.5;
+        _summaryFontSize = prefs.getDouble('summary_font_size') ?? 16.5;
         _summaryFontFamily = prefs.getString('summary_font_family') ?? 'Default';
         _summaryLineHeight = prefs.getDouble('summary_line_height') ?? 1.55;
       });
@@ -645,56 +645,60 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
                           // Proper Polished Spacing After Main Heading
                           const SizedBox(height: 14),
 
-                          // Hero Summary & Highlights Box Covering Full Width
+                          // Executive Dispatch Intelligence Card
                           Container(
                             width: double.infinity,
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                             decoration: BoxDecoration(
-                              color: isDark ? const Color(0xFF111827) : Colors.white,
-                              borderRadius: BorderRadius.circular(12),
+                              color: isDark ? const Color(0xFF161B22) : Colors.white,
+                              borderRadius: BorderRadius.circular(14),
                               border: Border.all(
-                                color: isDark ? const Color(0xFF1F2D47) : const Color(0xFFE2E8F0),
+                                color: isDark ? const Color(0xFF263040) : const Color(0xFFE2E8F0),
+                                width: 1,
                               ),
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                // Header: Analytics Icon + "Summary & Highlights" + Date Badge
-                                Row(
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.all(3.5),
-                                      decoration: BoxDecoration(
-                                        color: isDark ? const Color(0xFF38BDF8).withOpacity(0.15) : const Color(0xFF2563EB).withOpacity(0.1),
-                                        borderRadius: BorderRadius.circular(6),
-                                      ),
-                                      child: Icon(
-                                        Icons.insights_rounded,
-                                        size: 13,
-                                        color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF2563EB),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 5),
-                                    Expanded(
-                                      child: Text(
-                                        'Summary & Highlights',
-                                        style: TextStyle(
-                                          fontSize: 12.5,
-                                          fontWeight: FontWeight.w800,
-                                          letterSpacing: 0.1,
-                                          color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF1E3A8A),
+                                  // Card Header: Summary & Highlights Pill + Date
+                                  Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+                                        decoration: BoxDecoration(
+                                          color: (isDark ? const Color(0xFF38BDF8) : const Color(0xFF2563EB)).withOpacity(0.12),
+                                          borderRadius: BorderRadius.circular(6),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(
+                                              Icons.insights_rounded,
+                                              size: 12,
+                                              color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF2563EB),
+                                            ),
+                                            const SizedBox(width: 4.5),
+                                            Text(
+                                              'SUMMARY & HIGHLIGHTS',
+                                              style: TextStyle(
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.w800,
+                                                letterSpacing: 0.3,
+                                                color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF2563EB),
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    // High-Contrast Professional Real Article Date & Time Badge
+                                      const Spacer(),
+                                    // High-Contrast Article Date/Time Badge
                                     Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                       decoration: BoxDecoration(
                                         color: isDark ? const Color(0xFF0F2344) : const Color(0xFFEFF6FF),
                                         borderRadius: BorderRadius.circular(6),
                                         border: Border.all(
-                                          color: isDark ? const Color(0xFF0284C7).withOpacity(0.7) : const Color(0xFF93C5FD),
+                                          color: isDark ? const Color(0xFF0284C7).withOpacity(0.6) : const Color(0xFF93C5FD),
                                           width: 1,
                                         ),
                                       ),
@@ -722,7 +726,7 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
                                   ],
                                 ),
 
-                                const SizedBox(height: 10),
+                                const SizedBox(height: 12),
 
                                 // When AI summary is loading, show animated skeleton placeholder
                                 if (_loadingAiArticleIds.contains(article.id) && !(_aiSummaries[article.id] ?? article.summary).contains('•'))
@@ -743,91 +747,84 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
                                     lineHeight: _summaryLineHeight,
                                   ),
 
-                                const SizedBox(height: 12),
+                                const SizedBox(height: 14),
 
-                                // Highlighted Source Badge at bottom of summary
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                                  decoration: BoxDecoration(
-                                    color: isDark ? const Color(0xFF151D2E) : const Color(0xFFEFF6FF),
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(
-                                      color: isDark ? const Color(0xFF38BDF8).withOpacity(0.35) : const Color(0xFF2563EB).withOpacity(0.3),
-                                      width: 1,
+                                // Clean Divider before Source
+                                Divider(
+                                  height: 1,
+                                  thickness: 1,
+                                  color: isDark ? const Color(0xFF212C3D) : const Color(0xFFE2E8F0),
+                                ),
+
+                                const SizedBox(height: 10),
+
+                                // Integrated Source Attribution (Without Nested Box)
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.newspaper_rounded,
+                                      size: 13,
+                                      color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF2563EB),
                                     ),
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          Icon(
-                                            Icons.newspaper_rounded,
-                                            size: 13,
-                                            color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF2563EB),
-                                          ),
-                                          const SizedBox(width: 6),
-                                          Text(
-                                            'Source: ',
-                                            style: TextStyle(
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.w600,
-                                              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                                            ),
-                                          ),
-                                          Expanded(
-                                            child: Text(
-                                              article.source,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: TextStyle(
-                                                fontSize: 11.5,
-                                                fontWeight: FontWeight.w800,
-                                                color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF1E3A8A),
-                                              ),
-                                            ),
-                                          ),
-                                        ],
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      'Source: ',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
                                       ),
-                                      if (article.sources.length > 1) ...[
-                                        const SizedBox(height: 8),
-                                        Wrap(
-                                          spacing: 6,
-                                          runSpacing: 4,
-                                          crossAxisAlignment: WrapCrossAlignment.center,
-                                          children: [
-                                            Text(
-                                              'Also reported by:',
-                                              style: TextStyle(
-                                                fontSize: 10.5,
-                                                fontWeight: FontWeight.w600,
-                                                color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
-                                              ),
-                                            ),
-                                            for (final s in article.sources.where((src) => src != article.source))
-                                              Container(
-                                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                                                decoration: BoxDecoration(
-                                                  color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
-                                                  borderRadius: BorderRadius.circular(6),
-                                                  border: Border.all(
-                                                    color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
-                                                  ),
-                                                ),
-                                                child: Text(
-                                                  s,
-                                                  style: TextStyle(
-                                                    fontSize: 10,
-                                                    fontWeight: FontWeight.w700,
-                                                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569),
-                                                  ),
-                                                ),
-                                              ),
-                                          ],
+                                    ),
+                                    Expanded(
+                                      child: Text(
+                                        article.source,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.w800,
+                                          color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF1E3A8A),
                                         ),
-                                      ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                if (article.sources.length > 1) ...[
+                                  const SizedBox(height: 6),
+                                  Wrap(
+                                    spacing: 6,
+                                    runSpacing: 4,
+                                    crossAxisAlignment: WrapCrossAlignment.center,
+                                    children: [
+                                      Text(
+                                        'Also reported by:',
+                                        style: TextStyle(
+                                          fontSize: 10.5,
+                                          fontWeight: FontWeight.w600,
+                                          color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                                        ),
+                                      ),
+                                      for (final s in article.sources.where((src) => src != article.source))
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+                                            borderRadius: BorderRadius.circular(6),
+                                            border: Border.all(
+                                              color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
+                                            ),
+                                          ),
+                                          child: Text(
+                                            s,
+                                            style: TextStyle(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w700,
+                                              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569),
+                                            ),
+                                          ),
+                                        ),
                                     ],
                                   ),
-                                ),
+                                ],
                               ],
                             ),
                           ),

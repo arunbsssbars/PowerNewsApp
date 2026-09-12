@@ -478,10 +478,10 @@ class DashboardView extends StatelessWidget {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7.5),
                         decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF111827) : Colors.white,
+                          color: isDark ? const Color(0xFF161B22) : Colors.white,
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
-                            color: isDark ? const Color(0xFF1F2D47) : const Color(0xFFE2E8F0),
+                            color: isDark ? const Color(0xFF263040) : const Color(0xFFE2E8F0),
                           ),
                         ),
                         child: Column(
@@ -632,10 +632,10 @@ class DashboardView extends StatelessWidget {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6.5),
                         decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF111827) : Colors.white,
+                          color: isDark ? const Color(0xFF161B22) : Colors.white,
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
-                            color: isDark ? const Color(0xFF1F2D47) : const Color(0xFFE2E8F0),
+                            color: isDark ? const Color(0xFF263040) : const Color(0xFFE2E8F0),
                           ),
                         ),
                         child: Column(
@@ -781,10 +781,10 @@ class DashboardView extends StatelessWidget {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6.5),
                         decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF111827) : Colors.white,
+                          color: isDark ? const Color(0xFF161B22) : Colors.white,
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
-                            color: isDark ? const Color(0xFF1F2D47) : const Color(0xFFE2E8F0),
+                            color: isDark ? const Color(0xFF263040) : const Color(0xFFE2E8F0),
                           ),
                         ),
                         child: Column(

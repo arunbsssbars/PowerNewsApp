@@ -50,6 +50,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   @override
   void dispose() {
     _audioService.removeListener(_onAudioStateChange);
+    _audioService.stopAudio();
     super.dispose();
   }
 
@@ -363,11 +364,11 @@ class _ReaderScreenState extends State<ReaderScreen> {
       case ReaderThemeMode.sepia:
         return const Color(0xFFFBF0D9);
       case ReaderThemeMode.dark:
-        return const Color(0xFF0B0F19);
+        return const Color(0xFF0D1117);
       case ReaderThemeMode.light:
         return const Color(0xFFFAFAFA);
       case ReaderThemeMode.system:
-        return isSystemDark ? const Color(0xFF0F172A) : Colors.white;
+        return isSystemDark ? const Color(0xFF0D1117) : Colors.white;
     }
   }
 
@@ -376,11 +377,11 @@ class _ReaderScreenState extends State<ReaderScreen> {
       case ReaderThemeMode.sepia:
         return const Color(0xFF4A3B2C);
       case ReaderThemeMode.dark:
-        return const Color(0xFFE2E8F0);
+        return const Color(0xFFE6EDF3);
       case ReaderThemeMode.light:
         return const Color(0xFF1E293B);
       case ReaderThemeMode.system:
-        return isSystemDark ? const Color(0xFFF1F5F9) : const Color(0xFF0F172A);
+        return isSystemDark ? const Color(0xFFE6EDF3) : const Color(0xFF0F172A);
     }
   }
 
@@ -407,17 +408,17 @@ class _ReaderScreenState extends State<ReaderScreen> {
         backgroundColor: _isWebViewMode ? null : bgColor,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
-        title: Text(
-          _isWebViewMode ? article.source : 'Reader Mode',
-          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded),
+          tooltip: 'Back',
+          onPressed: () => Navigator.of(context).pop(),
         ),
-        actions: [
-          // Reader / Web View Mode Switcher
-          Container(
-            margin: const EdgeInsets.symmetric(vertical: 8),
+        title: Center(
+          child: Container(
+            padding: const EdgeInsets.all(3),
             decoration: BoxDecoration(
-              color: (isSystemDark ? Colors.white : Colors.black).withOpacity(0.06),
-              borderRadius: BorderRadius.circular(10),
+              color: (isSystemDark ? Colors.white : Colors.black).withOpacity(0.08),
+              borderRadius: BorderRadius.circular(20),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -437,8 +438,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
               ],
             ),
           ),
-          const SizedBox(width: 4),
-
+        ),
+        actions: [
           // Appearance Settings (in Reader mode)
           if (!_isWebViewMode)
             IconButton(
@@ -473,10 +474,10 @@ class _ReaderScreenState extends State<ReaderScreen> {
           // Open in Browser
           IconButton(
             icon: const Icon(Icons.open_in_new_rounded, size: 19),
-            tooltip: 'Open in Chrome',
+            tooltip: 'Open in Browser',
             onPressed: _openInExternalBrowser,
           ),
-          const SizedBox(width: 6),
+          const SizedBox(width: 4),
         ],
       ),
       body: _isWebViewMode

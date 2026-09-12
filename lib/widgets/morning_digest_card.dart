@@ -93,10 +93,10 @@ class MorningDigestCard extends StatelessWidget {
                           ),
                           const SizedBox(width: 6),
                           Text(
-                            digest.date,
+                            digest.formattedDate,
                             style: TextStyle(
                               fontSize: 10.5,
-                              fontWeight: FontWeight.w500,
+                              fontWeight: FontWeight.w600,
                               color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
                             ),
                           ),

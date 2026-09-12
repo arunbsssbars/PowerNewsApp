@@ -39,10 +39,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       'icon': Icons.insights_rounded,
       'accentColor': Color(0xFF059669),
       'gradient': [Color(0xFF059669), Color(0xFF047857)],
-      'title': 'Executive 50-Word\nTechnical Summaries',
+      'title': 'Executive 50–100 Word\nIntelligence Stories',
       'description':
-          'No clutter. Get actionable executive bullet points, substation capacities, policy shifts, and direct links to original sources.',
-      'stats': 'Fast • Accurate • Offline Ready',
+          'Actionable narrative briefings covering project capex, substation capacities, tariffs, and grid impact in 15 seconds.',
+      'stats': 'Fast • Grounded • Audio-Ready',
     },
   ];
 
@@ -68,7 +68,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF080C15) : const Color(0xFFF8FAFC),
+      backgroundColor: isDark ? const Color(0xFF0D1117) : const Color(0xFFF8FAFC),
       body: SafeArea(
         child: Column(
           children: [

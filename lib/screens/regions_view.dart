@@ -303,12 +303,12 @@ class _RegionsViewState extends State<RegionsView> {
                               decoration: BoxDecoration(
                                 color: isSelected
                                     ? const Color(0xFF2563EB)
-                                    : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9)),
+                                    : (isDark ? const Color(0xFF161B22) : const Color(0xFFF1F5F9)),
                                 borderRadius: BorderRadius.circular(18),
                                 border: Border.all(
                                   color: isSelected
                                       ? const Color(0xFF2563EB)
-                                      : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+                                      : (isDark ? const Color(0xFF263040) : const Color(0xFFE2E8F0)),
                                   width: 1,
                                 ),
                               ),
@@ -421,7 +421,7 @@ class _RegionsViewState extends State<RegionsView> {
                             ),
                             selected: selectedDiscom == 'All DISCOMs',
                             selectedColor: const Color(0xFF7C3AED),
-                            backgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                            backgroundColor: isDark ? const Color(0xFF161B22) : const Color(0xFFF1F5F9),
                             visualDensity: VisualDensity.compact,
                             onSelected: (selected) {
                               if (selected) provider.setDiscomFilter('All DISCOMs');
@@ -464,7 +464,7 @@ class _RegionsViewState extends State<RegionsView> {
                               tooltip: name,
                               selected: isDiscSelected,
                               selectedColor: const Color(0xFF7C3AED),
-                              backgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                              backgroundColor: isDark ? const Color(0xFF161B22) : const Color(0xFFF1F5F9),
                               visualDensity: VisualDensity.compact,
                               onSelected: (selected) {
                                 if (selected) {

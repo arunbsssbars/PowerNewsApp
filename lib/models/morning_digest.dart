@@ -1,3 +1,5 @@
+import 'package:intl/intl.dart';
+
 class MorningDigestItem {
   final String pillar;
   final String articleId;
@@ -100,6 +102,16 @@ class MorningDigest {
       audioScript: json['audioScript']?.toString() ?? '',
       items: itemList,
     );
+  }
+
+  String get formattedDate {
+    if (date.isEmpty) return 'Today';
+    try {
+      final parsed = DateTime.parse(date);
+      return DateFormat('dd-MMM-yy').format(parsed);
+    } catch (_) {
+      return date;
+    }
   }
 
   Map<String, dynamic> toJson() {

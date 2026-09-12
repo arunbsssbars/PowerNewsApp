@@ -88,16 +88,46 @@ function getReadableRefreshTime(isoDateString) {
 }
 
 // ----------------------------------------------------------------------------
+// Active Verified AI Summaries Gatekeeper
+// ----------------------------------------------------------------------------
+function getActiveArticles({ requireAiSummary = true } = {}) {
+  const cachedArticles = articleStore.getArticles();
+  const retained = filterArticlesRetention7Days(cachedArticles);
+  if (requireAiSummary) {
+    const summarized = retained
+      .filter(a => a.id && aiSummaryCache[a.id] && aiSummaryCache[a.id].length >= 75)
+      .map(a => ({
+        ...a,
+        title: cleanHeadline(a.title),
+        summary: aiSummaryCache[a.id]
+      }));
+    if (summarized.length >= 5 || retained.length === 0) {
+      return summarized;
+    }
+  }
+  return retained.map(a => ({
+    ...a,
+    title: cleanHeadline(a.title),
+    summary: (a.id && aiSummaryCache[a.id] && aiSummaryCache[a.id].length >= 75)
+      ? aiSummaryCache[a.id]
+      : cleanText(a.summary)
+  }));
+}
+
+// ----------------------------------------------------------------------------
 // Core Health & Ingestion
 // ----------------------------------------------------------------------------
 router.get('/health', (req, res) => {
-  const articles = articleStore.getArticles();
+  const rawArticles = articleStore.getArticles();
+  const activeSummaries = getActiveArticles();
   const rawDate = articleStore.getLastRefreshedAt();
   res.json({
     app: 'PowerNews',
     status: 'healthy',
     uptimeSeconds: Math.floor(process.uptime()),
-    totalArticles: articles.length,
+    totalArticles: activeSummaries.length,
+    rawScrapedArticles: rawArticles.length,
+    totalAiSummaries: Object.keys(aiSummaryCache).length,
     lastRefreshedAt: getReadableRefreshTime(rawDate),
     lastRefreshedAtIso: rawDate || null,
   });
@@ -122,57 +152,27 @@ router.get('/refresh', async (req, res) => {
 });
 
 // ----------------------------------------------------------------------------
-// Primary News Feed Endpoint
+// Primary News Feed Endpoint (Strictly AI-Summarized Curated Feed)
 // ----------------------------------------------------------------------------
 router.get('/news', async (req, res) => {
   const { category, state, city, discom, player, search, source, page = 1, limit = DEFAULT_PAGE_SIZE } = req.query;
-  const cachedArticles = articleStore.getArticles();
+  const activePool = getActiveArticles();
 
-  let filtered = filterArticlesRetention7Days([...cachedArticles]);
+  let filtered = [...activePool];
 
   if (category && category !== 'All') {
     const catLower = category.toLowerCase();
-    let catMatches = filtered.filter(
+    filtered = filtered.filter(
       (a) =>
-        a.categories.some((c) => c.toLowerCase() === catLower) ||
+        (a.categories || []).some((c) => c.toLowerCase() === catLower) ||
         (catLower === 'scada' &&
-          (a.title.toLowerCase().includes('scada') ||
-            a.summary.toLowerCase().includes('scada') ||
-            a.title.toLowerCase().includes('automation') ||
-            a.summary.toLowerCase().includes('automation') ||
-            a.title.toLowerCase().includes('substation') ||
-            a.title.toLowerCase().includes('it-ot')))
+          ((a.title && a.title.toLowerCase().includes('scada')) ||
+            (a.summary && a.summary.toLowerCase().includes('scada')) ||
+            (a.title && a.title.toLowerCase().includes('automation')) ||
+            (a.summary && a.summary.toLowerCase().includes('automation')) ||
+            (a.title && a.title.toLowerCase().includes('substation')) ||
+            (a.title && a.title.toLowerCase().includes('it-ot'))))
     );
-
-    if (catMatches.length < 5) {
-      try {
-        const queryTopic = catLower === 'scada' ? 'SCADA power grid' : category;
-        const liveCatResults = await searchLiveTopicRSS(queryTopic);
-        for (const item of liveCatResults) {
-          if (!item.categories.includes(catLower)) {
-            item.categories.unshift(catLower);
-          }
-        }
-        const combined = [...catMatches, ...liveCatResults];
-        const seen = new Set();
-        catMatches = combined.filter((item) => {
-          const key = item.title.toLowerCase().replace(/[^a-z0-9]/g, '');
-          if (seen.has(key)) return false;
-          seen.add(key);
-          return true;
-        });
-        const allCached = articleStore.getArticles();
-        for (const item of liveCatResults) {
-          if (!allCached.some(a => a.id === item.id)) {
-            allCached.push(item);
-          }
-        }
-      } catch (_) { }
-    }
-
-    catMatches = filterArticlesRetention7Days(catMatches);
-    catMatches.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
-    filtered = catMatches;
   }
 
   if (player && player !== 'All Players' && player !== 'All') {
@@ -180,41 +180,12 @@ router.get('/news', async (req, res) => {
     const rule = UTILITY_PLAYER_RULES.find(r => r.player.toLowerCase() === pLower || r.player.toLowerCase().includes(pLower));
     const keywords = rule ? rule.keywords.map(k => k.toLowerCase()) : [pLower];
 
-    let playerMatches = filtered.filter((a) => {
+    filtered = filtered.filter((a) => {
       if (a.player === player || (a.player && a.player.toLowerCase().includes(pLower))) return true;
       const titleLower = (a.title || '').toLowerCase();
       const summaryLower = (a.summary || '').toLowerCase();
       return keywords.some((k) => titleLower.includes(k) || summaryLower.includes(k));
     });
-
-    if (playerMatches.length < 3) {
-      try {
-        const liveQuery = rule ? `${rule.player} power India` : `${player} power India`;
-        const liveResults = await searchLiveTopicRSS(liveQuery);
-        for (const item of liveResults) {
-          if (!item.player) item.player = rule ? rule.player : player;
-        }
-        const combined = [...playerMatches, ...liveResults];
-        const seen = new Set();
-        playerMatches = combined.filter((item) => {
-          const key = item.title.toLowerCase().replace(/[^a-z0-9]/g, '');
-          if (seen.has(key)) return false;
-          seen.add(key);
-          return true;
-        });
-        // Merge into cachedArticles so future requests hit cache
-        const allCached = articleStore.getArticles();
-        for (const item of liveResults) {
-          if (!allCached.some(a => a.id === item.id)) {
-            allCached.push(item);
-          }
-        }
-      } catch (_) { }
-    }
-
-    playerMatches = filterArticlesRetention7Days(playerMatches);
-    playerMatches.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
-    filtered = playerMatches;
   }
 
   if (state && state !== 'All States') {
@@ -235,34 +206,9 @@ router.get('/news', async (req, res) => {
 
   if (search && search.trim()) {
     const q = search.toLowerCase().trim();
-    let localMatches = filtered.filter(
-      (a) => a.title.toLowerCase().includes(q) || a.summary.toLowerCase().includes(q)
+    filtered = filtered.filter(
+      (a) => (a.title && a.title.toLowerCase().includes(q)) || (a.summary && a.summary.toLowerCase().includes(q))
     );
-
-    if (localMatches.length < 5) {
-      try {
-        const liveResults = await searchLiveTopicRSS(search);
-        const combined = [...localMatches, ...liveResults];
-        const seen = new Set();
-        localMatches = combined.filter((item) => {
-          const key = item.title.toLowerCase().replace(/[^a-z0-9]/g, '');
-          if (seen.has(key)) return false;
-          seen.add(key);
-          return true;
-        });
-        // Merge live search results into articleStore cache
-        const allCached = articleStore.getArticles();
-        for (const item of liveResults) {
-          if (!allCached.some(a => a.id === item.id)) {
-            allCached.push(item);
-          }
-        }
-      } catch (_) { }
-    }
-
-    localMatches = filterArticlesRetention7Days(localMatches);
-    localMatches.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
-    filtered = localMatches;
   }
 
   filtered.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
@@ -270,27 +216,7 @@ router.get('/news', async (req, res) => {
   const p = parseInt(page, 10) || 1;
   const l = parseInt(limit, 10) || DEFAULT_PAGE_SIZE;
   const startIndex = (p - 1) * l;
-  const paginated = filtered.slice(startIndex, startIndex + l).map(a => ({
-    ...a,
-    title: cleanHeadline(a.title),
-    summary: (a.id && aiSummaryCache[a.id] && aiSummaryCache[a.id].length > 40)
-      ? aiSummaryCache[a.id]
-      : cleanText(a.summary)
-  }));
-
-  // Background pre-summarization for top 10 unsummarized articles in page 1
-  if (p === 1 && ai && Date.now() > geminiCoolingDownUntil) {
-    setImmediate(async () => {
-      const candidates = paginated.filter(a => a.id && !aiSummaryCache[a.id]).slice(0, 10);
-      for (const item of candidates) {
-        try {
-          await generateGeminiPowerSummary(
-            item.id, item.title, item.summary, item.categories?.[0], item.player, item.state, item.discom, item.url, cachedArticles
-          );
-        } catch (_) { }
-      }
-    });
-  }
+  const paginated = filtered.slice(startIndex, startIndex + l);
 
   res.json({
     total: filtered.length,
@@ -381,11 +307,11 @@ router.get('/search-topic', async (req, res) => {
 // ----------------------------------------------------------------------------
 router.get('/players', (req, res) => {
   const counts = {};
-  const cachedArticles = articleStore.getArticles();
+  const activeArticles = getActiveArticles();
   for (const rule of UTILITY_PLAYER_RULES) {
     const pName = rule.player;
     const keywords = rule.keywords.map(k => k.toLowerCase());
-    const count = cachedArticles.filter(a => {
+    const count = activeArticles.filter(a => {
       if (a.player === pName) return true;
       const titleLower = (a.title || '').toLowerCase();
       const summaryLower = (a.summary || '').toLowerCase();
@@ -398,7 +324,7 @@ router.get('/players', (req, res) => {
 
 router.get('/cities', (req, res) => {
   const counts = {};
-  for (const article of articleStore.getArticles()) {
+  for (const article of getActiveArticles()) {
     if (article.city) {
       counts[article.city] = (counts[article.city] || 0) + 1;
     }
@@ -416,7 +342,7 @@ router.get('/categories', (req, res) => {
     tenders: 0,
     scada: 0
   };
-  for (const article of articleStore.getArticles()) {
+  for (const article of getActiveArticles()) {
     for (const cat of article.categories || []) {
       if (counts[cat] !== undefined) {
         counts[cat]++;
@@ -428,15 +354,17 @@ router.get('/categories', (req, res) => {
 
 router.get('/states', (req, res) => {
   const counts = {};
-  for (const article of articleStore.getArticles()) {
-    counts[article.state] = (counts[article.state] || 0) + 1;
+  for (const article of getActiveArticles()) {
+    if (article.state) {
+      counts[article.state] = (counts[article.state] || 0) + 1;
+    }
   }
   res.json(counts);
 });
 
 router.get('/discoms', (req, res) => {
   const counts = {};
-  for (const article of articleStore.getArticles()) {
+  for (const article of getActiveArticles()) {
     if (article.discom) {
       counts[article.discom] = (counts[article.discom] || 0) + 1;
     }

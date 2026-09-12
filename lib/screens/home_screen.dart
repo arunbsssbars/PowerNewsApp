@@ -7,6 +7,8 @@ import 'regions_view.dart';
 import 'bookmarks_view.dart';
 import 'onboarding_screen.dart';
 import '../widgets/ask_gemini_sheet.dart';
+import '../widgets/about_sheet.dart';
+import '../widgets/notifications_sheet.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -37,10 +39,14 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   void _onNavigateTab(int index, {bool resetFilters = false}) {
     setState(() => _visitedTabs.add(index));
     final provider = context.read<NewsProvider>();
-    if (resetFilters) {
-      provider.clearAllFilters();
+    if (resetFilters && provider.isFiltered) {
+      provider.resetFiltersInMemory();
     }
     provider.setNavIndex(index);
+  }
+
+  void _showAboutSheet(BuildContext context) {
+    AboutSheet.show(context);
   }
 
   @override
@@ -69,7 +75,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
     final int bookmarkCount = provider.bookmarks.length;
     final subheadings = [
-      'India Power Sector Live',
+      'Power Intelligence',
       'Sector, Utilities & OEM Analytics',
       'Regional Grid & Utilities',
       '$bookmarkCount ${bookmarkCount == 1 ? 'Article' : 'Articles'} Saved',
@@ -77,26 +83,40 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
     return Scaffold(
       appBar: AppBar(
-        titleSpacing: 12,
+        titleSpacing: 10,
         title: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(6),
+              width: 34,
+              height: 34,
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF2563EB), Color(0xFF0284C7)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(9),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF0284C7).withOpacity(0.25),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
-              child: const Icon(
-                Icons.bolt_rounded,
-                size: 19,
-                color: Colors.white,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(9),
+                child: Image.asset(
+                  'assets/icons/app_icon.jpg',
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => Container(
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF2563EB), Color(0xFF0284C7)],
+                      ),
+                      borderRadius: BorderRadius.circular(9),
+                    ),
+                    child: const Icon(Icons.bolt_rounded, size: 20, color: Colors.white),
+                  ),
+                ),
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -146,74 +166,228 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           ],
         ),
         actions: [
-          // Phase 5: Ask Gemini Grid AI Quick Access
-          IconButton(
-            visualDensity: VisualDensity.compact,
-            padding: const EdgeInsets.all(6),
-            icon: Container(
-              padding: const EdgeInsets.all(4),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF6366F1), Color(0xFF9333EA)],
+          // 1. Theme Mode Quick Toggle (Comfortable 36x36 touch target)
+          Tooltip(
+            message: isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode',
+            child: InkWell(
+              borderRadius: BorderRadius.circular(10),
+              onTap: () => provider.toggleTheme(),
+              child: Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF1E293B).withOpacity(0.7) : const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: isDark ? const Color(0xFF334155).withOpacity(0.7) : const Color(0xFFE2E8F0),
+                    width: 1,
+                  ),
                 ),
-                borderRadius: BorderRadius.circular(8),
+                child: Center(
+                  child: Icon(
+                    isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+                    size: 18,
+                    color: isDark ? const Color(0xFFF59E0B) : const Color(0xFF475569),
+                  ),
+                ),
               ),
-              child: const Icon(Icons.auto_awesome, size: 16, color: Colors.white),
             ),
-            tooltip: 'Ask Gemini Grid AI',
-            onPressed: () => AskGeminiSheet.show(context),
           ),
 
-          // App Features & Guide Icon
-          IconButton(
-            visualDensity: VisualDensity.compact,
-            padding: const EdgeInsets.all(6),
-            icon: const Icon(Icons.help_outline_rounded, size: 20),
-            tooltip: 'App Features & Walkthrough',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const OnboardingScreen()),
-              );
-            },
-          ),
+          const SizedBox(width: 6),
 
-          // Light / Dark Mode Toggle Icon
-          IconButton(
-            visualDensity: VisualDensity.compact,
-            padding: const EdgeInsets.all(6),
-            icon: Icon(
-              isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
-              size: 20,
-              color: isDark ? const Color(0xFFFBBF24) : const Color(0xFF1E293B),
-            ),
-            tooltip: isDark ? 'Switch to Eye-Easing Light Mode' : 'Switch to Dark Mode',
-            onPressed: () => provider.toggleTheme(),
-          ),
-
-          // Animated Refresh Feeds Button (Rotates smoothly on click)
-          IconButton(
-            visualDensity: VisualDensity.compact,
-            padding: const EdgeInsets.all(6),
-            icon: RotationTransition(
-              turns: _refreshAnimController,
-              child: const Icon(Icons.sync_rounded, size: 20),
-            ),
-            tooltip: 'Refresh News Feeds',
-            onPressed: () async {
-              _refreshAnimController.repeat();
-              try {
-                await provider.triggerFullRefresh();
-              } finally {
-                if (mounted) {
-                  _refreshAnimController.animateTo(1.0, curve: Curves.easeOut).then((_) {
-                    if (mounted) _refreshAnimController.reset();
-                  });
+          // 2. Refresh Button (Comfortable 36x36 touch target)
+          Tooltip(
+            message: 'Refresh Feeds',
+            child: InkWell(
+              borderRadius: BorderRadius.circular(10),
+              onTap: () async {
+                _refreshAnimController.repeat();
+                try {
+                  await provider.triggerFullRefresh();
+                } finally {
+                  if (mounted) {
+                    _refreshAnimController.animateTo(1.0, curve: Curves.easeOut).then((_) {
+                      if (mounted) _refreshAnimController.reset();
+                    });
+                  }
                 }
-              }
-            },
+              },
+              child: Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF1E293B).withOpacity(0.7) : const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: isDark ? const Color(0xFF334155).withOpacity(0.7) : const Color(0xFFE2E8F0),
+                    width: 1,
+                  ),
+                ),
+                child: Center(
+                  child: RotationTransition(
+                    turns: _refreshAnimController,
+                    child: Icon(
+                      Icons.sync_rounded,
+                      size: 18,
+                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569),
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ),
-          const SizedBox(width: 4),
+
+          const SizedBox(width: 6),
+
+          // 3. Updated Article Notification Bell (Comfortable 36x36 touch target)
+          Tooltip(
+            message: provider.newArticlesCount > 0
+                ? '${provider.newArticlesCount} new power sector updates available'
+                : 'Feed Notifications',
+            child: InkWell(
+              borderRadius: BorderRadius.circular(10),
+              onTap: () {
+                NotificationsSheet.show(context);
+              },
+              child: Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF1E293B).withOpacity(0.7) : const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: provider.newArticlesCount > 0
+                        ? const Color(0xFF10B981).withOpacity(0.7)
+                        : (isDark ? const Color(0xFF334155).withOpacity(0.7) : const Color(0xFFE2E8F0)),
+                    width: provider.newArticlesCount > 0 ? 1.4 : 1.0,
+                  ),
+                ),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Icon(
+                      provider.newArticlesCount > 0
+                          ? Icons.notifications_active_rounded
+                          : Icons.notifications_none_rounded,
+                      size: 18,
+                      color: provider.newArticlesCount > 0
+                          ? const Color(0xFF10B981)
+                          : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569)),
+                    ),
+                    if (provider.newArticlesCount > 0)
+                      Positioned(
+                        top: 5,
+                        right: 5,
+                        child: Container(
+                          width: 7,
+                          height: 7,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFFEF4444),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(width: 6),
+
+          // 4. Three Dots Executive Menu (Comfortable 36x36 button, compact 175-195dp dropdown)
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1E293B).withOpacity(0.7) : const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: isDark ? const Color(0xFF334155).withOpacity(0.7) : const Color(0xFFE2E8F0),
+                width: 1,
+              ),
+            ),
+            child: PopupMenuButton<String>(
+              padding: EdgeInsets.zero,
+              iconSize: 18,
+              icon: Icon(
+                Icons.more_vert_rounded,
+                size: 18,
+                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569),
+              ),
+              tooltip: 'More Options',
+              position: PopupMenuPosition.under,
+              constraints: const BoxConstraints(minWidth: 175, maxWidth: 195),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+                side: BorderSide(
+                  color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                  width: 1,
+                ),
+              ),
+              color: isDark ? const Color(0xFF161B22) : Colors.white,
+              elevation: 8,
+              onSelected: (value) {
+                if (value == 'ai_desk') {
+                  AskGeminiSheet.show(context);
+                } else if (value == 'guide') {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const OnboardingScreen()),
+                  );
+                } else if (value == 'editorial') {
+                  _showAboutSheet(context);
+                }
+              },
+              itemBuilder: (context) => [
+                const PopupMenuItem(
+                  value: 'ai_desk',
+                  height: 42,
+                  child: Row(
+                    children: [
+                      Icon(Icons.auto_awesome_rounded, size: 17, color: Color(0xFF818CF8)),
+                      SizedBox(width: 10),
+                      Text(
+                        'Ask AI Desk',
+                        style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                ),
+                const PopupMenuDivider(height: 1),
+                const PopupMenuItem(
+                  value: 'guide',
+                  height: 42,
+                  child: Row(
+                    children: [
+                      Icon(Icons.help_outline_rounded, size: 17, color: Color(0xFF38BDF8)),
+                      SizedBox(width: 10),
+                      Text(
+                        'Tour & Guide',
+                        style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'editorial',
+                  height: 42,
+                  child: Row(
+                    children: [
+                      Icon(Icons.verified_user_outlined, size: 17, color: Color(0xFF10B981)),
+                      SizedBox(width: 10),
+                      Text(
+                        'Editorial Desk',
+                        style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
         ],
       ),
       body: IndexedStack(
@@ -225,12 +399,22 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         onDestinationSelected: (index) {
           final current = provider.currentNavIndex;
           if (index != current) {
-            // Reset all filters when moving from tab to tab
-            provider.clearAllFilters();
+            // Reset active filters in memory when switching tabs (0 network requests)
+            if (provider.isFiltered) {
+              provider.resetFiltersInMemory();
+            }
           }
           if (index == 0) {
-            // Selecting or reclicking News Feed tab resets filters and scrolls to top
-            provider.clearAllFiltersAndScrollTop();
+            // Selecting or reclicking News Feed tab
+            if (provider.isFiltered) {
+              provider.clearAllFiltersAndScrollTop();
+            } else {
+              provider.onScrollToTopRequested?.call();
+            }
+            // If data is completely empty or cache expired after 10+ minutes, silently revalidate
+            if (provider.articles.isEmpty || provider.isNewsCacheExpired) {
+              provider.fetchNews();
+            }
           }
           provider.setNavIndex(index);
         },

@@ -141,7 +141,7 @@ class _MorningDigestSheetState extends State<MorningDigestSheet> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        '${widget.digest.items.length} Executive Insights • ${widget.digest.date}',
+                        '${widget.digest.items.length} Executive Insights • ${widget.digest.formattedDate}',
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
@@ -156,7 +156,7 @@ class _MorningDigestSheetState extends State<MorningDigestSheet> {
                   color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
                   onPressed: () {
                     final title = widget.digest.title;
-                    final date = widget.digest.date;
+                    final date = widget.digest.formattedDate;
                     final items = widget.digest.items
                         .map((item) => "⚡ ${item.pillar.toUpperCase()}\n${item.headline}\n- ${item.bullet}")
                         .join('\n\n');

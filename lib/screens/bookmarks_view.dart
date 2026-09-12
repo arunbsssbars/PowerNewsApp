@@ -59,10 +59,10 @@ class BookmarksView extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF111827) : Colors.white,
+                color: isDark ? const Color(0xFF161B22) : Colors.white,
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
-                  color: isDark ? const Color(0xFF1F2D47) : const Color(0xFFE2E8F0),
+                  color: isDark ? const Color(0xFF263040) : const Color(0xFFE2E8F0),
                 ),
               ),
               child: Row(
@@ -70,13 +70,13 @@ class BookmarksView extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(7),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFD97706).withOpacity(isDark ? 0.22 : 0.12),
+                      color: const Color(0xFFFBBF24).withOpacity(isDark ? 0.22 : 0.12),
                       borderRadius: BorderRadius.circular(9),
                     ),
                     child: const Icon(
                       Icons.bookmark_rounded,
                       size: 18,
-                      color: Color(0xFFD97706),
+                      color: Color(0xFFFBBF24),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -97,7 +97,7 @@ class BookmarksView extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.w500,
-                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                            color: isDark ? const Color(0xFF9DA7B3) : const Color(0xFF64748B),
                           ),
                         ),
                       ],
