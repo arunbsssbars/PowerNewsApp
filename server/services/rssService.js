@@ -154,24 +154,34 @@ async function searchLiveTopicRSS(queryText, { applyGemini = false } = {}) {
  * Results are merged into the article store after syncFeeds has already returned.
  */
 async function prewarmTopicFeeds(articleStore) {
-  console.log(`[PowerNews] Background pre-warming ${ALL_PREWARM_QUERIES.length} OEM/Utility/DISCOM/State topic feeds...`);
+  console.log(`[PowerNews] Background pre-warming ${ALL_PREWARM_QUERIES.length} consolidated OEM/Utility/DISCOM/State topic feeds...`);
   const prewarmStart = Date.now();
   const prewarmArticles = [];
+  const BATCH_SIZE = 4;
+  let completed = 0;
 
-  for (let i = 0; i < ALL_PREWARM_QUERIES.length; i++) {
-    const query = ALL_PREWARM_QUERIES[i];
-    try {
-      // Per-query timeout guard: skip any query that takes longer than 15s
-      const articles = await Promise.race([
-        searchLiveTopicRSS(query),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 15000)),
-      ]);
-      prewarmArticles.push(...articles);
-    } catch (_) { }
-    if ((i + 1) % 10 === 0 || i === ALL_PREWARM_QUERIES.length - 1) {
-      console.log(`[PowerNews] Pre-warm progress: ${i + 1}/${ALL_PREWARM_QUERIES.length} feeds fetched (${Math.round((Date.now() - prewarmStart) / 1000)}s elapsed)`);
+  for (let i = 0; i < ALL_PREWARM_QUERIES.length; i += BATCH_SIZE) {
+    const wave = ALL_PREWARM_QUERIES.slice(i, i + BATCH_SIZE);
+    const results = await Promise.allSettled(
+      wave.map(query =>
+        Promise.race([
+          searchLiveTopicRSS(query),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3500)),
+        ])
+      )
+    );
+
+    for (const res of results) {
+      if (res.status === 'fulfilled' && Array.isArray(res.value)) {
+        prewarmArticles.push(...res.value);
+      }
     }
-    await new Promise(r => setTimeout(r, 150));
+
+    completed += wave.length;
+    console.log(`[PowerNews] Pre-warm progress: ${completed}/${ALL_PREWARM_QUERIES.length} feeds fetched (${Math.round((Date.now() - prewarmStart) / 1000)}s elapsed, ${prewarmArticles.length} candidates)`);
+    if (i + BATCH_SIZE < ALL_PREWARM_QUERIES.length) {
+      await new Promise(r => setTimeout(r, 250));
+    }
   }
 
   if (prewarmArticles.length === 0) return;

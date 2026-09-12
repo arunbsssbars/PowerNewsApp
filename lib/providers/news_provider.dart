@@ -160,7 +160,7 @@ class NewsProvider extends ChangeNotifier {
   bool get personaOnlyFilter => _personaOnlyFilter;
   List<String> get recentSearches => _recentSearches;
   List<NewsArticle> get notificationArticles => List.unmodifiable(_notificationArticles);
-  int get newArticlesCount => _newArticleIds.where((id) => !_readArticleIds.contains(id)).length;
+  int get newArticlesCount => _notificationArticles.where((a) => !_readArticleIds.contains(a.id)).length;
   bool isArticleNew(String id) => _newArticleIds.contains(id) && !_readArticleIds.contains(id);
   bool get hasInitialDataLoaded => _hasInitialDataLoaded;
   bool get isNewsCacheExpired {
@@ -263,6 +263,9 @@ class NewsProvider extends ChangeNotifier {
               _notificationArticles.add(art);
             }
           }
+          // Prune any stale IDs that no longer exist in cached articles
+          _newArticleIds.removeWhere((id) => !cachedMap.containsKey(id));
+          _persistNotificationState();
         }
       } else {
         _hasInitialDataLoaded = false;
@@ -343,6 +346,7 @@ class NewsProvider extends ChangeNotifier {
 
   void applyNewArticles() {
     clearFilters();
+    markAllNotificationsAsRead();
     fetchNews(isRefresh: true);
     onScrollToTopRequested?.call();
   }

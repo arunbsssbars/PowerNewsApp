@@ -6,7 +6,6 @@ import '../widgets/city_filter_sheet.dart';
 import '../widgets/news_card.dart';
 import '../widgets/morning_digest_card.dart';
 import '../widgets/persona_selector.dart';
-import '../widgets/notifications_sheet.dart';
 
 class FeedView extends StatefulWidget {
   const FeedView({super.key});
@@ -679,7 +678,6 @@ class _FeedViewState extends State<FeedView> {
                     onTap: () {
                       _scrollToTop();
                       provider.applyNewArticles();
-                      NotificationsSheet.show(context);
                     },
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),

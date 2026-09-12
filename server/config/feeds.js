@@ -49,107 +49,38 @@ const RSS_FEEDS = [
 ];
 
 const ALL_PREWARM_QUERIES = [
-  // Major OEMs & Equipment Manufacturers
-  'BHEL power plant substation India',
-  'Hitachi Energy India grid transformer',
-  'Siemens Energy India substation switchgear',
-  'ABB India power grid relay',
-  'Schneider Electric India smart grid',
-  'Larsen Toubro power transmission substation',
-  'GE Vernova India grid solutions',
-  'Secure Meters smart metering India',
-  'Genus Power smart meter India',
-  'Genus Power Infrastructures smart meter',
-  'CG Power transformer India',
-  'KEC International transmission tower India',
-  'Kalpataru Projects transmission line India',
-  'Sterlite Power transmission India',
-  'Toshiba India transmission distribution',
-  'Mitsubishi Electric India switchgear',
-  'Apar Industries conductor India',
-  'Polycab cables India power',
-  'Havells switchgear India industrial',
-  'Waaree solar module India',
-  'Suzlon wind energy India',
-  'Inox Wind turbine India',
-  'Vikram Solar panel India',
-  'Premier Energies solar India',
-  'Eaton power grid India',
-  'Delta Electronics inverter India',
-  'SEL relay protection India',
-
-  // Central Utilities & PSUs
-  'NTPC power plant generation India',
-  'POWERGRID transmission substation India',
-  'NHPC hydropower India',
-  'SJVN renewable energy India',
-  'SECI solar wind tender India',
-  'IREDA renewable finance India',
-  'REC Limited PFC power finance India',
-
-  // Private Power Utilities
-  'Tata Power distribution renewable India',
-  'Adani Power green energy India',
-  'Adani Electricity Mumbai distribution',
-  'JSW Energy renewable India',
-  'Torrent Power Gujarat distribution',
-  'Reliance Power new energy India',
-  'Greenko pumped storage India',
-  'ReNew Power renewable India',
-
-  // State DISCOMs — North India
-  'UPPCL smart meter UP electricity tariff',
-  'MVVNL PVVNL PUVVNL DVVNL Uttar Pradesh power',
-  'PSPCL Punjab electricity tariff power cut',
-  'DHBVN UHBVN Haryana electricity tariff',
-  'JBVNL Jharkhand power distribution',
-  'NBPDCL SBPDCL Bihar electricity',
-  'HPSEBL Himachal Pradesh electricity',
-  'UPCL Uttarakhand power',
-  'JPDCL KPDCL Jammu Kashmir electricity',
-
-  // State DISCOMs — West India
-  'MSEDCL Maharashtra electricity tariff discom',
-  'GUVNL UGVCL DGVCL Gujarat solar power',
-  'CSPDCL Chhattisgarh power distribution',
-  'MPPKVVCL MPMKVVCL Madhya Pradesh electricity',
-
-  // State DISCOMs — South India
-  'TANGEDCO Tamil Nadu power tariff',
-  'TSSPDCL TSNPDCL Telangana electricity Hyderabad',
-  'APSPDCL APEPDCL Andhra Pradesh power',
-  'BESCOM KPTCL Karnataka electricity Bengaluru',
-  'KSEB Kerala power electricity',
-
-  // State DISCOMs — East India
-  'WBSEDCL CESC West Bengal electricity Kolkata',
-  'TPCODL TPWODL TPNODL TPSODL Odisha power',
-  'APDCL Assam power distribution',
-
-  // City-level Power News
-  'Delhi BSES TPDDL power cut tariff DERC',
-  'Mumbai Adani Electricity tariff power outage',
-  'Bengaluru BESCOM power cut electricity bill',
-  'Hyderabad TSSPDCL electricity tariff load shedding',
-  'Chennai TANGEDCO power cut tariff',
-  'Kolkata CESC electricity tariff power',
-  'Jaipur JVVNL Rajasthan solar power',
-  'Lucknow UPPCL power meter tariff',
-  'Ahmedabad Torrent Power GUVNL electricity',
-  'Pune MSEDCL electricity tariff',
-
-  // Thematic / Technology
-  'RDSS smart metering India distribution reform',
-  'BESS battery storage India grid',
-  'Green Hydrogen India electrolyser power',
-  'PM Surya Ghar rooftop solar India',
-  'HVDC transmission India powergrid',
-  'GIS substation India 765kV 400kV',
-  'IEC 61850 SCADA automation India substation',
-  'CERC SERC tariff order electricity regulation India',
-  'Open access electricity India IEX',
-  'Solar park SECI tender auction India',
-  'Wind energy offshore onshore India tender'
+  // 1. Grid OEMs & High-Voltage Equipment
+  '(BHEL OR "Hitachi Energy" OR Siemens OR ABB OR Schneider OR "GE Vernova" OR "L&T") (substation OR transformer OR grid OR power) India',
+  // 2. Transmission Lines, EPC & Cable Infrastructure
+  '("Sterlite Power" OR "KEC International" OR Kalpataru OR "CG Power" OR Apar OR Polycab OR Havells) (transmission OR conductor OR cables OR substation) India',
+  // 3. Smart Metering & National AMI Rollout
+  '("Secure Meters" OR "Genus Power" OR "HPL Electric" OR RDSS) (smart meter OR AMI OR prepaid meter) India',
+  // 4. Solar Modules & Wind Turbine OEMs
+  '(Waaree OR Suzlon OR "Inox Wind" OR "Vikram Solar" OR "Premier Energies") (solar OR wind OR turbine OR module) India',
+  // 5. Central Power PSUs & Public Financing
+  '(NTPC OR POWERGRID OR NHPC OR SJVN OR SECI OR IREDA OR PFC OR REC) (power OR renewable OR transmission OR tariff) India',
+  // 6. Major Private Utilities & IPPs
+  '("Tata Power" OR "Adani Power" OR "Adani Energy Solutions" OR "JSW Energy" OR "Torrent Power" OR "Reliance Power" OR Greenko OR ReNew) (power OR solar OR wind OR discom) India',
+  // 7. North India State DISCOMs
+  '(UPPCL OR MVVNL OR PVVNL OR PUVVNL OR DVVNL OR PSPCL OR DHBVN OR UHBVN) (electricity OR tariff OR power cut) India',
+  // 8. West India State DISCOMs
+  '(MSEDCL OR Mahagenco OR GUVNL OR UGVCL OR DGVCL OR CSPDCL OR MPPKVVCL) (electricity OR tariff OR discom) India',
+  // 9. South India State DISCOMs
+  '(TANGEDCO OR TSSPDCL OR TSNPDCL OR APSPDCL OR BESCOM OR KPTCL OR KSEB) (electricity OR power tariff OR discom) India',
+  // 10. East & Central State DISCOMs
+  '(WBSEDCL OR CESC OR TPCODL OR TPWODL OR TPNODL OR TPSODL OR APDCL OR JBVNL) (electricity OR power distribution) India',
+  // 11. Metro City Power Utilities & Supply
+  '(Delhi BSES OR TPDDL OR "Adani Electricity Mumbai" OR "CESC Kolkata" OR "BESCOM Bengaluru") (power cut OR electricity tariff OR bill)',
+  // 12. Battery Energy Storage (BESS) & Pumped Hydro
+  '("BESS" OR "battery energy storage" OR "pumped storage") (power grid OR CEA OR SECI) India',
+  // 13. Green Hydrogen & Clean Energy Transition
+  '("Green Hydrogen" OR electrolyser OR "National Green Hydrogen Mission") (power OR energy OR MNRE) India',
+  // 14. PM Surya Ghar & Decentralized Rooftop Solar
+  '("PM Surya Ghar" OR "rooftop solar" OR "solar park") (subsidy OR installation OR DISCOM) India',
+  // 15. Grid Automation, SCADA, HVDC & GIS Substations
+  '(HVDC OR "765 kV" OR "400 kV" OR "GIS substation" OR "IEC 61850" OR SCADA OR automation) (grid OR POWERGRID OR substation) India',
+  // 16. Power Markets & Electricity Regulations
+  '(CERC OR SERC OR "tariff order" OR "General Network Access" OR "Open Access" OR IEX) (electricity OR power) India',
 ];
 
 module.exports = {
