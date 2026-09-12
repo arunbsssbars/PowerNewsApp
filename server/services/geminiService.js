@@ -122,35 +122,35 @@ async function generateGeminiPowerSummary(articleId, title, snippet, category, p
 
   // Step 2: Process with Gemini AI models
   if (ai && Date.now() > geminiCoolingDownUntil) {
-    const prompt = `You are an elite Senior Indian Power Sector Analyst & Editorial Expert providing intelligence briefings for key stakeholders (CEA, CERC, State DISCOMs like UPPCL/BESCOM/MSEDCL/TANGEDCO, Power PSUs like NTPC/PGCIL/NHPC/SJVN/SECI, Private Giants like Tata Power/Adani Power/JSW, and Power OEMs like BHEL/Siemens/ABB/Schneider/L&T).
+    const prompt = `You are the Chief Editor and Senior Power Sector Intelligence Analyst for PowerNews India. Your audience includes leadership at CEA, CERC, State DISCOMs, Power PSUs (NTPC, PGCIL, SECI), Private Utilities (Tata Power, Adani, JSW), and Grid OEMs (Siemens, Hitachi Energy, BHEL, GE Vernova).
 
-Read the COMPLETE ARTICLE CONTENT below and craft a short story that covers the full article in 3 to 5 crisp, sequentially flowing bullet points — like a concise news brief that tells the whole story from start to finish:
+Read the ACTUAL ARTICLE CONTENT below and synthesize an executive narrative briefing of exactly 100 to 150 words. Structure the story into 3 to 4 cohesive, sequentially flowing narrative beats that tell the complete story from start to finish:
 
+ARTICLE METADATA:
 Headline: ${cleanTitle}
 Key Entity: ${player || 'Power Sector Stakeholder'}
-Geography: ${state || 'Pan-India'} ${discom ? `(${discom})` : ''}
+Geography: ${state || 'National / Pan-India'} ${discom ? `(${discom})` : ''}
 
 ACTUAL ARTICLE CONTENT:
 """
 ${contentToAnalyze}
 """
 
-Strict Output Rules:
-- Cover the COMPLETE article — from the core development to key details to impact/outlook — in 3 to 5 bullets.
-- Each bullet should flow naturally as part of a short story: What happened → supporting facts → impact or next steps.
-- Ground every bullet strictly in the provided article content. Do NOT hallucinate or invent facts.
-- Keep bullets SHORT and punchy: maximum 15 to 20 words per bullet.
-- Output 3 to 5 bullet points, each on a new line starting with "• ".
-- • Bullet 1 (REQUIRED): The core event, decision, or development (the 'what happened').
-- • Bullet 2 (if article contains numbers/data): Key figures, metrics, or specifics (MW/GW, ₹ Crore, kV, ₹/kWh, dates, entities). Skip if no such data exists.
-- • Bullet 3 (if applicable): Operational, regulatory, or grid-level context or implication. Skip if not mentioned.
-- • Bullet 4 (if applicable): A secondary detail or stakeholder angle from the article. Skip if not present.
-- • Bullet 5 (if applicable): Forward outlook, next steps, or broader significance mentioned in the article. Skip if not present.
-- IMPORTANT: Only include a bullet if its content genuinely exists in the article. Never pad with generic or invented points.
-- Do NOT include markdown bold labels, preambles, section headers, or emojis. Output only the bullet lines starting with "• ".`;
+STRICT EDITORIAL GUIDELINES:
+- Output exactly 3 or 4 bullet points, each on a new line starting with "• ".
+- Total word count across all bullets MUST be between 100 and 150 words.
+- Beat 1 (The Catalyst): The core event, regulatory ruling, PPA, capacity addition, or tender (What happened).
+- Beat 2 (Data & Metrics): Key numbers, capacities (MW/GW), voltage ratings (kV), project capex (₹ Crore), tariffs (₹/kWh), or contract partners (The anatomy).
+- Beat 3 (Operational Context): Operational, grid-level, or utility mechanics mentioned in the article.
+- Beat 4 (Strategic Sector Impact): Why it matters for grid stability, renewable integration, DISCOM health, or power supply outlook (The significance).
+- Tone: Executive business-intelligence tone (authoritative, crisp, factual like Bloomberg Energy or Reuters).
+- Grounding: Every sentence must be 100% strictly grounded in the provided article content. Never hallucinate or invent figures.
+- Do NOT include markdown bold titles, preambles, introductory filler, or section labels. Output ONLY the bullet lines starting with "• ".`;
 
     const envModel = process.env.GEMINI_MODEL ? process.env.GEMINI_MODEL.trim() : null;
-    const modelsToTry = envModel ? [envModel] : ['gemini-3.5-flash-lite', 'gemini-3.6-flash', 'gemini-3.7-flash'];
+    const modelsToTry = envModel
+      ? [envModel, 'gemini-3.6-flash', 'gemini-3.7-flash'].filter((v, i, a) => a.indexOf(v) === i)
+      : ['gemini-3.6-flash', 'gemini-3.7-flash', 'gemini-3.5-flash-lite'];
 
     for (const model of modelsToTry) {
       try {
@@ -161,12 +161,13 @@ Strict Output Rules:
 
         let aiText = (response.text || '').trim();
         aiText = cleanSummaryOutput(aiText);
-        if (aiText && aiText.includes('•') && aiText.length > 25) {
+        if (aiText && aiText.length > 50) {
           if (articleId) {
             aiSummaryCache[articleId] = aiText;
             saveAiSummaryCache();
           }
-          console.log(`[Gemini AI] Synthesized ${aiText.split('\n').length} bullets for "${cleanTitle.slice(0, 40)}" via ${model}`);
+          const wordCount = aiText.split(/\s+/).filter(Boolean).length;
+          console.log(`[Gemini AI] Synthesized ${aiText.split('\n').length} narrative beats (${wordCount} words) for "${cleanTitle.slice(0, 40)}" via ${model}`);
           return aiText;
         }
       } catch (err) {

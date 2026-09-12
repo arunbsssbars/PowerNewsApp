@@ -273,7 +273,7 @@ router.get('/news', async (req, res) => {
   const paginated = filtered.slice(startIndex, startIndex + l).map(a => ({
     ...a,
     title: cleanHeadline(a.title),
-    summary: (a.id && aiSummaryCache[a.id] && aiSummaryCache[a.id].includes('•'))
+    summary: (a.id && aiSummaryCache[a.id] && aiSummaryCache[a.id].length > 40)
       ? aiSummaryCache[a.id]
       : cleanText(a.summary)
   }));
@@ -335,7 +335,7 @@ router.get('/article-summary', async (req, res) => {
   }
 
   try {
-    const wasCached = !!(id && aiSummaryCache[id] && aiSummaryCache[id].includes('•'));
+    const wasCached = !!(id && aiSummaryCache[id] && aiSummaryCache[id].length > 40);
 
     const summary = await generateGeminiPowerSummary(
       id, title, snippet || '', category || 'Power Sector', player, state, discom, url, articleStore.getArticles()
