@@ -18,6 +18,7 @@ class NewsArticle {
   final List<String> sources;
   final List<Map<String, String>> sourceLinks;
   final int coverageCount;
+  final bool isAiGenerated;
 
   NewsArticle({
     required this.id,
@@ -35,6 +36,7 @@ class NewsArticle {
     this.sources = const [],
     this.sourceLinks = const [],
     this.coverageCount = 1,
+    this.isAiGenerated = true,
   });
 
   static String cleanHtmlAndEntities(String input) {
@@ -165,6 +167,9 @@ class NewsArticle {
       sources: srcList,
       sourceLinks: srcLinks,
       coverageCount: coverage,
+      isAiGenerated: json['isAiGenerated'] == true ||
+          json['isAiSummary'] == true ||
+          (json['isAiGenerated'] == null && json['isAiSummary'] == null),
     );
   }
 
@@ -185,6 +190,7 @@ class NewsArticle {
       'sources': sources,
       'sourceLinks': sourceLinks,
       'coverageCount': coverageCount,
+      'isAiGenerated': isAiGenerated,
     };
   }
 

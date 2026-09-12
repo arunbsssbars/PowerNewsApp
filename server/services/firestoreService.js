@@ -59,15 +59,23 @@ function initFirestore() {
 }
 
 /**
- * Loads all AI summaries from Cloud Firestore into an in-memory dictionary.
+ * Loads all AI summaries and full article documents from Cloud Firestore.
+ * Returns an object that can be treated as both an id->summary map and provides .articles array.
  */
 async function loadAllSummariesFromFirestore() {
   const database = initFirestore();
-  if (!database) return {};
+  if (!database) {
+    const empty = {};
+    empty.summaryMap = {};
+    empty.articles = [];
+    return empty;
+  }
 
   try {
     const snapshot = await database.collection('ai_summaries').get();
-    const map = {};
+    const summaryMap = {};
+    const articles = [];
+
     snapshot.forEach(doc => {
       const data = doc.data();
       if (
@@ -77,19 +85,64 @@ async function loadAllSummariesFromFirestore() {
         data.summary.length >= 75 &&
         !data.summary.startsWith('• ')
       ) {
-        map[doc.id] = data.summary;
+        const id = doc.id;
+        summaryMap[id] = data.summary;
+
+        // Reconstruct full article record with all fields
+        const categories = Array.isArray(data.categories) && data.categories.length > 0
+          ? data.categories
+          : [data.category || 'generation'];
+
+        const primarySource = data.source || 'PowerNews';
+        const sources = Array.isArray(data.sources) && data.sources.length > 0
+          ? data.sources
+          : [primarySource];
+
+        const sourceLinks = Array.isArray(data.sourceLinks) ? data.sourceLinks : [];
+        if (sourceLinks.length === 0 && data.url) {
+          sourceLinks.push({ source: primarySource, url: data.url });
+        }
+
+        articles.push({
+          id,
+          title: data.title || '',
+          summary: data.summary,
+          url: data.url || '',
+          source: primarySource,
+          publishedAt: data.publishedAt || data.updatedAt || new Date().toISOString(),
+          categories,
+          player: data.player || null,
+          city: data.city || null,
+          state: data.state || 'National / Pan-India',
+          discom: data.discom || null,
+          fullText: data.fullText || null,
+          sources,
+          sourceLinks,
+          coverageCount: typeof data.coverageCount === 'number' ? data.coverageCount : (sources.length > 1 ? sources.length : 1),
+          isAiSummary: true,
+          isAiGenerated: true,
+        });
       }
     });
-    console.log(`[Firestore] Loaded ${Object.keys(map).length} AI-generated narrative summaries from Cloud Firestore.`);
-    return map;
+
+    console.log(`[Firestore] Loaded ${articles.length} complete AI-summarized articles from Cloud Firestore.`);
+
+    // Dual-use return: works as map (res[id]) and provides { summaryMap, articles }
+    const result = { ...summaryMap };
+    result.summaryMap = summaryMap;
+    result.articles = articles;
+    return result;
   } catch (err) {
-    console.warn('[Firestore] Error reading summaries from cloud:', err.message);
-    return {};
+    console.warn('[Firestore] Error reading articles from cloud:', err.message);
+    const empty = {};
+    empty.summaryMap = {};
+    empty.articles = [];
+    return empty;
   }
 }
 
 /**
- * Persists a single AI summary document to Cloud Firestore.
+ * Persists a complete AI-summarized article document with all 14 fields to Cloud Firestore.
  * Strictly enforces that only genuine AI-generated summaries are stored.
  */
 async function saveSummaryToFirestore(id, summary, metadata = {}) {
@@ -102,20 +155,48 @@ async function saveSummaryToFirestore(id, summary, metadata = {}) {
     return;
   }
 
+  const primarySource = metadata.source || 'PowerNews';
+  const categories = Array.isArray(metadata.categories) && metadata.categories.length > 0
+    ? metadata.categories
+    : [metadata.category || 'generation'];
+
+  const sources = Array.isArray(metadata.sources) && metadata.sources.length > 0
+    ? metadata.sources
+    : [primarySource];
+
+  const sourceLinks = Array.isArray(metadata.sourceLinks) && metadata.sourceLinks.length > 0
+    ? metadata.sourceLinks
+    : (metadata.url ? [{ source: primarySource, url: metadata.url }] : []);
+
+  const coverageCount = typeof metadata.coverageCount === 'number'
+    ? metadata.coverageCount
+    : (sources.length > 1 ? sources.length : 1);
+
+  const docData = {
+    id,
+    title: metadata.title || '',
+    summary: trimmed,
+    url: metadata.url || '',
+    source: primarySource,
+    publishedAt: metadata.publishedAt || new Date().toISOString(),
+    categories,
+    player: metadata.player || null,
+    city: metadata.city || null,
+    state: metadata.state || 'National / Pan-India',
+    discom: metadata.discom || null,
+    fullText: metadata.fullText || null,
+    sources,
+    sourceLinks,
+    coverageCount,
+    isAiGenerated: true,
+    updatedAt: new Date().toISOString(),
+  };
+
   try {
-    await database.collection('ai_summaries').doc(id).set({
-      summary: trimmed,
-      title: metadata.title || '',
-      category: metadata.category || '',
-      player: metadata.player || null,
-      state: metadata.state || null,
-      discom: metadata.discom || null,
-      isAiGenerated: true,
-      updatedAt: new Date().toISOString(),
-    }, { merge: true });
-    console.log(`[Firestore] Saved genuine AI summary for "${(metadata.title || id).slice(0, 40)}" to Cloud Firestore.`);
+    await database.collection('ai_summaries').doc(id).set(docData, { merge: true });
+    console.log(`[Firestore] Saved complete AI article for "${(metadata.title || id).slice(0, 40)}" to Cloud Firestore.`);
   } catch (err) {
-    console.warn(`[Firestore] Failed saving summary ${id}:`, err.message);
+    console.warn(`[Firestore] Failed saving article ${id}:`, err.message);
   }
 }
 

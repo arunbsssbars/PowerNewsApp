@@ -255,14 +255,14 @@ router.get('/article-summary', async (req, res) => {
   try {
     const wasCached = !!(id && aiSummaryCache[id] && aiSummaryCache[id].length > 40);
 
+    const existingArticle = articleStore.getArticles().find(a => a.id === id);
     const summary = await generateGeminiPowerSummary(
-      id, title, snippet || '', category || 'Power Sector', player, state, discom, url, articleStore.getArticles()
+      id, title, snippet || '', category || 'Power Sector', player, state, discom, url, articleStore.getArticles(), existingArticle
     );
 
     if (id && summary && !summary.startsWith('• ')) {
       aiSummaryCache[id] = summary;
-      const article = articleStore.getArticles().find(a => a.id === id);
-      if (article) article.summary = summary;
+      if (existingArticle) existingArticle.summary = summary;
     }
 
     return res.json({

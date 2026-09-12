@@ -130,7 +130,7 @@ async function searchLiveTopicRSS(queryText, { applyGemini = false } = {}) {
       for (const a of toSummarize) {
         try {
           const aiSum = await generateGeminiPowerSummary(
-            a.id, a.title, a.summary, a.categories[0], a.player, a.state, a.discom, a.url, results
+            a.id, a.title, a.summary, (a.categories && a.categories[0]) || 'generation', a.player, a.state, a.discom, a.url, results, a
           );
           if (aiSum && aiSum.length > 30) a.summary = aiSum;
         } catch (_) { }
@@ -219,7 +219,9 @@ async function syncFeeds(currentCachedArticles = [], articleStore = null) {
     }
 
     const seenMap = new Map();
-    for (const article of rawArticles) {
+    const candidateArticles = [...rawArticles, ...currentCachedArticles];
+    for (const article of candidateArticles) {
+      if (!article || !article.title) continue;
       const key = article.title.toLowerCase().replace(/[^a-z0-9]/g, '');
       const existingDate = previousDateMap.get(article.id) || previousDateMap.get(key);
       if (existingDate) {

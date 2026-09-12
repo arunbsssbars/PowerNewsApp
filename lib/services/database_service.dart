@@ -474,6 +474,7 @@ class DatabaseService {
       sources: srcList,
       sourceLinks: srcLinks,
       coverageCount: row['coverage_count'] as int? ?? 1,
+      isAiGenerated: true,
     );
   }
 

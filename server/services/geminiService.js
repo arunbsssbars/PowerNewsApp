@@ -14,6 +14,7 @@ const {
   loadAllSummariesFromFirestore,
   saveSummaryToFirestore,
 } = require('./firestoreService');
+const articleStore = require('./articleStore');
 
 const apiKey = process.env.GEMINI_API_KEY;
 let ai = null;
@@ -34,12 +35,14 @@ let aiSummaryCache = {};
 // Asynchronously synchronize with Cloud Firestore on startup
 setImmediate(async () => {
   try {
-    const cloudSummaries = await loadAllSummariesFromFirestore();
-    const cloudCount = Object.keys(cloudSummaries).length;
+    const cloudData = await loadAllSummariesFromFirestore();
+    const summaryMap = cloudData.summaryMap || cloudData;
+    const cloudArticles = cloudData.articles || [];
+    const cloudCount = Object.keys(summaryMap).filter(k => k !== 'summaryMap' && k !== 'articles').length;
     if (cloudCount > 0) {
       let merged = 0;
-      for (const [id, summary] of Object.entries(cloudSummaries)) {
-        if (!aiSummaryCache[id]) {
+      for (const [id, summary] of Object.entries(summaryMap)) {
+        if (id !== 'summaryMap' && id !== 'articles' && !aiSummaryCache[id]) {
           aiSummaryCache[id] = summary;
           merged++;
         }
@@ -47,6 +50,10 @@ setImmediate(async () => {
       if (merged > 0) {
         console.log(`[Firestore Sync] Loaded and merged ${merged} active summaries from Cloud Firestore into RAM.`);
       }
+    }
+    if (cloudArticles.length > 0) {
+      articleStore.mergeArticles(cloudArticles);
+      console.log(`[Firestore Sync] Hydrated articleStore with ${cloudArticles.length} complete articles from Cloud Firestore.`);
     }
   } catch (err) {
     console.warn('[Firestore Sync] Async sync warning:', err.message);
@@ -95,12 +102,24 @@ function findSimilarCachedSummary(targetTitle, targetPlayer, targetState, cached
 /**
  * Generates an executive summary grounded in actual scraped publisher article content.
  */
-async function generateGeminiPowerSummary(articleId, title, snippet, category, player, state, discom, url, cachedArticles = []) {
+async function generateGeminiPowerSummary(articleId, title, snippet, category, player, state, discom, url, cachedArticles = [], articleData = null) {
   // Reject short or low-quality cached stubs (< 90 characters)
   if (articleId && aiSummaryCache[articleId] && aiSummaryCache[articleId].length >= 90) {
     return aiSummaryCache[articleId];
   }
   const cleanTitle = cleanHeadline(title);
+
+  const fullArticle = articleData || (cachedArticles && cachedArticles.find(a => a.id === articleId)) || null;
+  const categoriesList = (fullArticle && Array.isArray(fullArticle.categories) && fullArticle.categories.length > 0)
+    ? fullArticle.categories
+    : (category ? [category] : ['generation']);
+  const primarySource = (fullArticle && fullArticle.source) || 'PowerNews';
+  const sourcesList = (fullArticle && Array.isArray(fullArticle.sources) && fullArticle.sources.length > 0)
+    ? fullArticle.sources
+    : [primarySource];
+  const sourceLinksList = (fullArticle && Array.isArray(fullArticle.sourceLinks) && fullArticle.sourceLinks.length > 0)
+    ? fullArticle.sourceLinks
+    : (url ? [{ source: primarySource, url }] : []);
 
   // Strict check: only reuse if the exact same story exists (syndicated wire copy)
   const similarSummary = findSimilarCachedSummary(cleanTitle, player, state, cachedArticles);
@@ -109,6 +128,23 @@ async function generateGeminiPowerSummary(articleId, title, snippet, category, p
     if (articleId) {
       aiSummaryCache[articleId] = similarSummary;
       saveAiSummaryCache();
+      saveSummaryToFirestore(articleId, similarSummary, {
+        title: cleanTitle,
+        category: categoriesList[0],
+        categories: categoriesList,
+        player: (fullArticle && fullArticle.player) || player || null,
+        city: (fullArticle && fullArticle.city) || null,
+        state: (fullArticle && fullArticle.state) || state || 'National / Pan-India',
+        discom: (fullArticle && fullArticle.discom) || discom || null,
+        url: (fullArticle && fullArticle.url) || url || '',
+        source: primarySource,
+        publishedAt: (fullArticle && fullArticle.publishedAt) || new Date().toISOString(),
+        fullText: (fullArticle && fullArticle.fullText) || null,
+        sources: sourcesList,
+        sourceLinks: sourceLinksList,
+        coverageCount: (fullArticle && typeof fullArticle.coverageCount === 'number') ? fullArticle.coverageCount : sourcesList.length,
+        isAiGenerated: true,
+      });
     }
     return similarSummary;
   }
@@ -135,7 +171,7 @@ async function generateGeminiPowerSummary(articleId, title, snippet, category, p
   if (ai && Date.now() > geminiCoolingDownUntil) {
     const prompt = `You are the Chief Editor and Senior Power Sector Intelligence Analyst for PowerNews India. Your audience includes leadership at CEA, CERC, State DISCOMs, Power PSUs (NTPC, PGCIL, SECI), Private Utilities (Tata Power, Adani, JSW), and Grid OEMs (Siemens, Hitachi Energy, BHEL, GE Vernova).
 
-Read the ACTUAL ARTICLE CONTENT below and synthesize an ultra-crisp executive narrative story of strictly 50 to 100 words. Deliver the briefing as a single, fluid journalistic paragraph that reads like an opening dispatch from Bloomberg Energy or Reuters.
+Read the ACTUAL ARTICLE CONTENT below and synthesize an ultra-crisp executive narrative story of strictly 60 to 80 words. Deliver the briefing as a single, fluid journalistic paragraph that reads like a high-impact opening dispatch from Bloomberg Energy or Reuters.
 
 ARTICLE METADATA:
 Headline: ${cleanTitle}
@@ -150,11 +186,10 @@ ${contentToAnalyze}
 STRICT EDITORIAL GUIDELINES:
 - Output ONLY a single, continuous paragraph of narrative prose.
 - DO NOT use bullet points ("•", "-", "*"), numbers ("1.", "2."), bold section titles, preambles, or conversational filler.
-- Total word count MUST strictly be between 50 and 100 words.
-- Weave the complete story into 3 to 4 tightly linked sentences:
+- Total word count MUST strictly be between 60 and 80 words. Be concise, punchy, and dense with facts.
+- Weave the complete briefing into 2 to 3 tightly linked sentences:
     1. The Catalyst: The core event, contract award, regulatory order, or capacity commissioning.
-    2. Data & Metrics: Key figures, capacity (MW/GW), capex (₹ Crore), voltage (kV), tariff (₹/kWh), or partners.
-    3. Operational & Strategic Impact: Technical scope and its broader significance for grid reliability or power supply.
+    2. Data & Operational Impact: Key numbers (MW/GW, ₹ Crore, kV, ₹/kWh) and significance for the power grid or sector.
 - Tone: Executive business-intelligence tone (active voice, dense with facts, authoritative).
 - Grounding: 100% strictly grounded in the provided article content. Never hallucinate, extrapolate, or invent numbers.`;
 
@@ -177,10 +212,19 @@ STRICT EDITORIAL GUIDELINES:
             aiSummaryCache[articleId] = aiText;
             saveSummaryToFirestore(articleId, aiText, {
               title: cleanTitle,
-              category,
-              player,
-              state,
-              discom,
+              category: categoriesList[0],
+              categories: categoriesList,
+              player: (fullArticle && fullArticle.player) || player || null,
+              city: (fullArticle && fullArticle.city) || null,
+              state: (fullArticle && fullArticle.state) || state || 'National / Pan-India',
+              discom: (fullArticle && fullArticle.discom) || discom || null,
+              url: (fullArticle && fullArticle.url) || url || '',
+              source: primarySource,
+              publishedAt: (fullArticle && fullArticle.publishedAt) || new Date().toISOString(),
+              fullText: (fullArticle && fullArticle.fullText) || (articleContent.length > 80 ? articleContent : null),
+              sources: sourcesList,
+              sourceLinks: sourceLinksList,
+              coverageCount: (fullArticle && typeof fullArticle.coverageCount === 'number') ? fullArticle.coverageCount : sourcesList.length,
               isAiGenerated: true,
             });
           }
@@ -287,7 +331,7 @@ async function runGeminiBatchSummarization(articles = []) {
         try {
           const aiSum = await generateGeminiPowerSummary(
             a.id, a.title, a.summary,
-            a.categories[0], a.player, a.state, a.discom, a.url, articles
+            (a.categories && a.categories[0]) || 'generation', a.player, a.state, a.discom, a.url, articles, a
           );
           if (aiSum && aiSum.length > 30 && !aiSum.startsWith('• ')) {
             a.summary = aiSum;
