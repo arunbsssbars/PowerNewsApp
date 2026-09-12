@@ -172,6 +172,7 @@ Strict Output Rules:
         if (err.message && err.message.includes('429')) {
           geminiCoolingDownUntil = Date.now() + 30000; // 30s pause
           console.warn(`[Gemini AI] Quota cooling down (429). Pausing for 30s.`);
+          break; // Don't try next model — same quota applies
         } else {
           console.warn(`[Gemini AI] Error with model ${model} for "${cleanTitle.slice(0, 40)}":`, err.message);
         }
