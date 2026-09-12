@@ -149,8 +149,8 @@ Strict Output Rules:
 - IMPORTANT: Only include a bullet if its content genuinely exists in the article. Never pad with generic or invented points.
 - Do NOT include markdown bold labels, preambles, section headers, or emojis. Output only the bullet lines starting with "• ".`;
 
-    const envModel = process.env.GEMINI_MODEL;
-    const modelsToTry = envModel ? [envModel] : ['gemini-3.5-flash-lite', 'gemini-3.6-flash'];
+    const envModel = process.env.GEMINI_MODEL ? process.env.GEMINI_MODEL.trim() : null;
+    const modelsToTry = envModel ? [envModel] : ['gemini-1.5-flash-8b', 'gemini-1.5-flash'];
 
     for (const model of modelsToTry) {
       try {
@@ -464,8 +464,8 @@ INSTRUCTIONS:
 4. Keep the response crisp, professional, and directly actionable for grid, DISCOM, OEM and other power sector professionals.`;
 
   if (ai && Date.now() > geminiCoolingDownUntil) {
-    const envModel = process.env.GEMINI_MODEL;
-    const modelsToTry = envModel ? [envModel] : ['gemini-3.6-flash', 'gemini-3.7-flash', 'gemini-3.1-flash-lite'];
+    const envModel = process.env.GEMINI_MODEL ? process.env.GEMINI_MODEL.trim() : null;
+    const modelsToTry = envModel ? [envModel] : ['gemini-1.5-flash', 'gemini-1.5-pro'];
     for (const model of modelsToTry) {
       try {
         const response = await ai.models.generateContent({
