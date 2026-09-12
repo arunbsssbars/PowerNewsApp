@@ -106,7 +106,7 @@ class NewsProvider extends ChangeNotifier {
     if (_articles.length > maxCount) {
       maxCount = _articles.length;
     }
-    return maxCount > 0 ? maxCount : 288;
+    return maxCount;
   }
 
   int get totalStateNewsCount {

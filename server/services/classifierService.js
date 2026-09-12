@@ -157,6 +157,12 @@ function isPowerSectorNews(title, summary, isStrictFeed) {
     }
   }
 
+  // Strictly dedicated power sector feeds (Power Line, PIB Power, Mercom, etc.)
+  // are guaranteed domain-specific and should never be dropped by generic keyword filters.
+  if (isStrictFeed) {
+    return true;
+  }
+
   const hasAnchor = CORE_POWER_ANCHORS.some((anchor) => matchesKeyword(fullText, anchor));
   const hasCategory = CATEGORY_RULES.some((rule) =>
     rule.keywords.some((kw) => matchesKeyword(fullText, kw))

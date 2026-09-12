@@ -104,7 +104,7 @@ async function scrapeFullArticle(url) {
 
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 2500);
+    const timeout = setTimeout(() => controller.abort(), 6000);
 
     const ua = SCRAPER_USER_AGENTS[Math.floor(Math.random() * SCRAPER_USER_AGENTS.length)];
     const response = await fetch(targetUrl, {
@@ -151,9 +151,12 @@ async function scrapeFullArticle(url) {
       '.artText',
       '[data-articlebody] p',
       '[data-articlebody]',
+      '.entry-content p',
+      '.entry-content',
+      '.mh-post-content p',
+      '.mh-post-content',
       'article p',
       'main p',
-      '.entry-content p',
       '.post-content p',
       '.story-content p',
       '.article-body p',
@@ -211,7 +214,7 @@ async function scrapeFullArticle(url) {
             }
           }
         });
-        if (candidateParagraphs.length >= 2) {
+        if (candidateParagraphs.length >= 2 || (candidateParagraphs.length === 1 && candidateParagraphs[0].length >= 70)) {
           paragraphs = candidateParagraphs;
           break;
         }

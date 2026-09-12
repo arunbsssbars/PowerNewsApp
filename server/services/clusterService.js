@@ -63,13 +63,19 @@ function clusterArticles(articles, aiSummaryCache = {}) {
   }
 
   return clusters.map(c => {
-    const master = { ...c.primary };
+    // Utmost priority: if cluster contains an article from Power Line or PIB, elevate it to master
+    const authoritative = c.articles.find(a =>
+      (a.source && /power line|pib ministry/i.test(a.source)) ||
+      (a.url && a.url.includes('powerline.net.in'))
+    );
+    const primaryArticle = authoritative || c.primary;
+    const master = { ...primaryArticle };
     master.sources = c.sources;
     master.sourceLinks = c.sourceLinks;
     master.coverageCount = c.articles.length;
 
     // Zero-Waste Gemini Optimization: If any source in this cluster already has a verified AI summary, share it across the whole cluster
-    const mateWithSummary = c.articles.find(a => a.id && aiSummaryCache[a.id] && aiSummaryCache[a.id].includes('•'));
+    const mateWithSummary = c.articles.find(a => a.id && aiSummaryCache[a.id] && aiSummaryCache[a.id].length >= 80);
     if (mateWithSummary) {
       const sharedSummary = aiSummaryCache[mateWithSummary.id];
       for (const a of c.articles) {

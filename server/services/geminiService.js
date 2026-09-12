@@ -160,8 +160,8 @@ STRICT EDITORIAL GUIDELINES:
 
     const envModel = process.env.GEMINI_MODEL ? process.env.GEMINI_MODEL.trim() : null;
     const modelsToTry = envModel
-      ? [envModel, 'gemini-3.6-flash', 'gemini-3.7-flash'].filter((v, i, a) => a.indexOf(v) === i)
-      : ['gemini-3.6-flash', 'gemini-3.7-flash', 'gemini-3.5-flash-lite'];
+      ? [envModel, 'gemini-3.1-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.5-flash-lite', 'gemini-3.6-flash'].filter((v, i, a) => a.indexOf(v) === i)
+      : ['gemini-3.1-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.5-flash-lite', 'gemini-3.6-flash', 'gemini-3.7-flash'];
 
     for (const model of modelsToTry) {
       try {
@@ -256,7 +256,21 @@ async function runGeminiBatchSummarization(articles = []) {
     return;
   }
 
-  console.log(`[Gemini AI] Starting full batch summarization: ${unsummarized.length} articles across all outlets, OEMs, utilities, DISCOMs & states...`);
+  // Utmost Priority: Power Line is the power sector core entity.
+  // Sort queue: Power Line first, followed by PIB/core power authorities, then general feeds.
+  unsummarized.sort((a, b) => {
+    const isPowerLineA = (a.source && /power line/i.test(a.source)) || (a.url && a.url.includes('powerline.net.in')) ? 1 : 0;
+    const isPowerLineB = (b.source && /power line/i.test(b.source)) || (b.url && b.url.includes('powerline.net.in')) ? 1 : 0;
+    if (isPowerLineA !== isPowerLineB) return isPowerLineB - isPowerLineA;
+
+    const isCoreA = (a.source && /pib|mercom|economic times power|cea|cerc|ntpc|powergrid/i.test(a.source)) ? 1 : 0;
+    const isCoreB = (b.source && /pib|mercom|economic times power|cea|cerc|ntpc|powergrid/i.test(b.source)) ? 1 : 0;
+    if (isCoreA !== isCoreB) return isCoreB - isCoreA;
+
+    return new Date(b.publishedAt || 0) - new Date(a.publishedAt || 0);
+  });
+
+  console.log(`[Gemini AI] Starting prioritized batch summarization: ${unsummarized.length} articles (PowerLine & core power sector entities prioritized first)...`);
   let processed = 0;
 
   for (let i = 0; i < unsummarized.length; i += GEMINI_BATCH_SIZE) {
@@ -296,35 +310,74 @@ let dailyDigestCache = {};
 
 function generateDailyDigest(cachedArticles = []) {
   const todayKey = new Date().toISOString().slice(0, 10);
-  if (dailyDigestCache[todayKey] && dailyDigestCache[todayKey].items.length >= 3) {
-    return dailyDigestCache[todayKey];
+  const cachedDigest = dailyDigestCache[todayKey];
+
+  // If cached digest exists, check if all items have genuine AI summaries.
+  // If any item was cached before its AI summary was ready, but an AI summary is now available, refresh the digest!
+  if (cachedDigest && cachedDigest.items.length >= 3) {
+    const hasUnsummarizedItems = cachedDigest.items.some(it => !it.isAiSummary);
+    const anyNewlySummarized = hasUnsummarizedItems && cachedDigest.items.some(it =>
+      it.articleId && aiSummaryCache[it.articleId] && aiSummaryCache[it.articleId].length >= 75 && !aiSummaryCache[it.articleId].startsWith('• ')
+    );
+    if (!anyNewlySummarized && !hasUnsummarizedItems) {
+      return cachedDigest;
+    }
   }
 
   const selected = [];
   const usedIds = new Set();
 
   function pickOne(predicate, pillarLabel) {
-    const candidate = cachedArticles.find(a => !usedIds.has(a.id) && predicate(a));
+    // Utmost Priority 1: Pick an article matching predicate that already has a genuine Gemini AI summary
+    let candidate = cachedArticles.find(a =>
+      !usedIds.has(a.id) &&
+      predicate(a) &&
+      a.id &&
+      aiSummaryCache[a.id] &&
+      aiSummaryCache[a.id].length >= 75 &&
+      !aiSummaryCache[a.id].startsWith('• ')
+    );
+
+    // Priority 2: If none in this pillar has an AI summary yet, pick matching candidate
+    if (!candidate) {
+      candidate = cachedArticles.find(a => !usedIds.has(a.id) && predicate(a));
+    }
+
     if (candidate) {
       usedIds.add(candidate.id);
-      const latestSummary = getLatestSummary(candidate);
-      const cleanBullet = latestSummary
-        .split('\n')
-        .map(s => s.replace(/^[^a-zA-Z0-9]+/, '').trim())
-        .filter(s => s.length > 20)[0] || candidate.title;
+      const isAi = Boolean(
+        candidate.id &&
+        aiSummaryCache[candidate.id] &&
+        aiSummaryCache[candidate.id].length >= 75 &&
+        !aiSummaryCache[candidate.id].startsWith('• ')
+      );
+      const fullSummary = isAi ? aiSummaryCache[candidate.id] : getLatestSummary(candidate);
+
+      let cleanBullet;
+      if (isAi) {
+        // Extract punchy first catalyst sentence from the narrative AI briefing
+        const firstSentence = fullSummary.split(/[.!?]\s+/)[0].trim();
+        cleanBullet = firstSentence.endsWith('.') ? firstSentence : `${firstSentence}.`;
+      } else {
+        cleanBullet = fullSummary
+          .split('\n')
+          .map(s => s.replace(/^[^a-zA-Z0-9]+/, '').trim())
+          .filter(s => s.length > 20)[0] || candidate.title;
+      }
 
       selected.push({
         pillar: pillarLabel,
         articleId: candidate.id,
-        headline: candidate.title,
+        headline: cleanHeadline(candidate.title),
         bullet: cleanBullet,
-        fullSummary: latestSummary,
+        fullSummary: fullSummary,
         source: candidate.source,
         sources: candidate.sources || [candidate.source],
         coverageCount: candidate.coverageCount || 1,
         state: candidate.state,
         player: candidate.player,
         url: candidate.url,
+        isAiSummary: isAi,
       });
     }
   }
@@ -335,30 +388,52 @@ function generateDailyDigest(cachedArticles = []) {
   pickOne(a => a.player && a.player !== 'Power Sector Stakeholder' && /bhel|hitachi|siemens|abb|schneider|apar|genus|premier|waaree|inox|suzlon|larsen/i.test(a.player), 'OEMs & Equipment');
   pickOne(a => /cerc|serc|cea|ministry|ntpc|powergrid|nhpc|sjvn|seci/i.test(a.title + (a.player || '')), 'Policy & Regulators');
 
-  for (const a of cachedArticles) {
+  // Fill up to 5 items if any pillar was missing, preferring AI-summarized articles
+  const remainingCandidates = cachedArticles
+    .filter(a => !usedIds.has(a.id))
+    .sort((a, b) => {
+      const aHasAi = (a.id && aiSummaryCache[a.id] && !aiSummaryCache[a.id].startsWith('• ')) ? 1 : 0;
+      const bHasAi = (b.id && aiSummaryCache[b.id] && !aiSummaryCache[b.id].startsWith('• ')) ? 1 : 0;
+      if (aHasAi !== bHasAi) return bHasAi - aHasAi;
+      return new Date(b.publishedAt || 0) - new Date(a.publishedAt || 0);
+    });
+
+  for (const a of remainingCandidates) {
     if (selected.length >= 5) break;
-    if (!usedIds.has(a.id)) {
-      usedIds.add(a.id);
-      const latestSummary = getLatestSummary(a);
-      const cleanBullet = latestSummary
+    usedIds.add(a.id);
+    const isAi = Boolean(
+      a.id &&
+      aiSummaryCache[a.id] &&
+      aiSummaryCache[a.id].length >= 75 &&
+      !aiSummaryCache[a.id].startsWith('• ')
+    );
+    const fullSummary = isAi ? aiSummaryCache[a.id] : getLatestSummary(a);
+
+    let cleanBullet;
+    if (isAi) {
+      const firstSentence = fullSummary.split(/[.!?]\s+/)[0].trim();
+      cleanBullet = firstSentence.endsWith('.') ? firstSentence : `${firstSentence}.`;
+    } else {
+      cleanBullet = fullSummary
         .split('\n')
         .map(s => s.replace(/^[^a-zA-Z0-9]+/, '').trim())
         .filter(s => s.length > 20)[0] || a.title;
-
-      selected.push({
-        pillar: a.categories && a.categories[0] ? a.categories[0].toUpperCase() : 'Sector News',
-        articleId: a.id,
-        headline: a.title,
-        bullet: cleanBullet,
-        fullSummary: latestSummary,
-        source: a.source,
-        sources: a.sources || [a.source],
-        coverageCount: a.coverageCount || 1,
-        state: a.state,
-        player: a.player,
-        url: a.url,
-      });
     }
+
+    selected.push({
+      pillar: a.categories && a.categories[0] ? a.categories[0].toUpperCase() : 'Sector News',
+      articleId: a.id,
+      headline: cleanHeadline(a.title),
+      bullet: cleanBullet,
+      fullSummary: fullSummary,
+      source: a.source,
+      sources: a.sources || [a.source],
+      coverageCount: a.coverageCount || 1,
+      state: a.state,
+      player: a.player,
+      url: a.url,
+      isAiSummary: isAi,
+    });
   }
 
   const expandForTTS = (text) => {

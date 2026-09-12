@@ -22,7 +22,7 @@ const {
 } = require('./geminiService');
 
 const parser = new Parser({
-  timeout: 10000,
+  timeout: 20000,
   headers: {
     'User-Agent': 'PowerNewsEngine/3.0 (India Power Sector Intelligence)'
   }
