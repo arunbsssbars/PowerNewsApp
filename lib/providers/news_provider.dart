@@ -83,11 +83,8 @@ class NewsProvider extends ChangeNotifier {
   Map<String, int> get sources => _sources;
 
   int get totalNewsCount {
-    if (_states.isNotEmpty) {
-      return _states.values.fold(0, (sum, count) => sum + count);
-    }
-    if (_categories.isNotEmpty) {
-      return _categories.values.fold(0, (sum, count) => sum + count);
+    if (_cachedFullList.isNotEmpty) {
+      return _cachedFullList.length;
     }
     return _articles.length;
   }

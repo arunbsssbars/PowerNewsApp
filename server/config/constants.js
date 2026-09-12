@@ -27,11 +27,15 @@ const SCRAPER_USER_AGENTS = [
 
 const APP_REDIRECT_URL_RE = /\/\/(?:play\.google\.com|apps\.apple\.com|itunes\.apple\.com|appgallery\.huawei\.com)|intent:\/\//i;
 
+// Pagination Constants
+const DEFAULT_PAGE_SIZE = 15;
+
 module.exports = {
   PORT,
   CACHE_FILE,
   RETENTION_MS,
   MAX_CACHED_SUMMARIES,
+  DEFAULT_PAGE_SIZE,
   GEMINI_BATCH_SIZE,
   GEMINI_WAVE_DELAY_MS,
   GEMINI_SAVE_EVERY,

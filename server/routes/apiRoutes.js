@@ -28,16 +28,63 @@ const {
 const {
   scrapeFullArticle,
 } = require('../services/scraperService');
+const { DEFAULT_PAGE_SIZE } = require('../config/constants');
 
 const router = express.Router();
+const rateLimit = require('express-rate-limit');
 
-function getAvailableApkPath() {
-  const rootDir = path.join(__dirname, '..', '..');
-  const releasePath = path.join(rootDir, 'build', 'app', 'outputs', 'flutter-apk', 'app-release.apk');
-  if (fs.existsSync(releasePath)) return { path: releasePath, filename: 'PowerNews.apk', type: 'Release' };
-  const debugPath = path.join(rootDir, 'build', 'app', 'outputs', 'flutter-apk', 'app-debug.apk');
-  if (fs.existsSync(debugPath)) return { path: debugPath, filename: 'PowerNews-Debug.apk', type: 'Debug' };
-  return null;
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 150,
+  message: { error: 'Too many requests from this IP, please try again after 15 minutes' }
+});
+
+const qnaLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: { error: 'Too many Q&A requests, please try again later' }
+});
+
+// Auth Middleware
+function requireApiKey(req, res, next) {
+  if (req.path === '/health' || req.path === '/apk' || req.path === '/memory') {
+    return next();
+  }
+  
+  const expectedSecret = process.env.APP_CLIENT_SECRET;
+  const apiKey = req.headers['x-api-key'];
+  if (!apiKey || apiKey !== expectedSecret) {
+    return res.status(401).json({ error: 'Unauthorized access' });
+  }
+  next();
+}
+
+router.use(globalLimiter);
+router.use(requireApiKey);
+
+function getReadableRefreshTime(isoDateString) {
+  if (!isoDateString) return 'Not refreshed yet';
+  const d = new Date(isoDateString);
+  const formatted = d.toLocaleString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    dateStyle: 'medium',
+    timeStyle: 'medium',
+    hour12: true,
+  }) + ' IST';
+
+  const diffSec = Math.max(0, Math.floor((Date.now() - d.getTime()) / 1000));
+  let relative = `${diffSec}s ago`;
+  if (diffSec >= 60) {
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin >= 60) {
+      const diffHours = Math.floor(diffMin / 60);
+      relative = `${diffHours}h ago`;
+    } else {
+      relative = `${diffMin}m ago`;
+    }
+  }
+
+  return `${formatted} (${relative})`;
 }
 
 // ----------------------------------------------------------------------------
@@ -45,12 +92,14 @@ function getAvailableApkPath() {
 // ----------------------------------------------------------------------------
 router.get('/health', (req, res) => {
   const articles = articleStore.getArticles();
+  const rawDate = articleStore.getLastRefreshedAt();
   res.json({
     app: 'PowerNews',
     status: 'healthy',
     uptimeSeconds: Math.floor(process.uptime()),
     totalArticles: articles.length,
-    lastRefreshedAt: articleStore.getLastRefreshedAt()
+    lastRefreshedAt: getReadableRefreshTime(rawDate),
+    lastRefreshedAtIso: rawDate || null,
   });
 });
 
@@ -76,7 +125,7 @@ router.get('/refresh', async (req, res) => {
 // Primary News Feed Endpoint
 // ----------------------------------------------------------------------------
 router.get('/news', async (req, res) => {
-  const { category, state, city, discom, player, search, source, page = 1, limit = 10 } = req.query;
+  const { category, state, city, discom, player, search, source, page = 1, limit = DEFAULT_PAGE_SIZE } = req.query;
   const cachedArticles = articleStore.getArticles();
 
   let filtered = filterArticlesRetention7Days([...cachedArticles]);
@@ -219,7 +268,7 @@ router.get('/news', async (req, res) => {
   filtered.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
 
   const p = parseInt(page, 10) || 1;
-  const l = parseInt(limit, 10) || 10;
+  const l = parseInt(limit, 10) || DEFAULT_PAGE_SIZE;
   const startIndex = (p - 1) * l;
   const paginated = filtered.slice(startIndex, startIndex + l).map(a => ({
     ...a,
@@ -458,7 +507,7 @@ router.get('/morning-digest', (req, res) => {
   res.json(digest);
 });
 
-router.post('/ask-gemini', async (req, res) => {
+router.post('/ask-gemini', qnaLimiter, async (req, res) => {
   const { question, persona } = req.body || {};
   if (!question || typeof question !== 'string' || question.trim().length < 3) {
     return res.status(400).json({ success: false, message: 'A valid question is required.' });

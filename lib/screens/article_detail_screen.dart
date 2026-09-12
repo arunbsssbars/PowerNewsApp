@@ -466,24 +466,32 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
           const SizedBox(width: 4),
         ],
       ),
-      body: PageView.builder(
-        controller: _pageController,
-        itemCount: widget.articles.length,
-        onPageChanged: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-          _fetchAiSummaryIfNeeded(widget.articles[index]);
-          if (index + 1 < widget.articles.length) {
-            _fetchAiSummaryIfNeeded(widget.articles[index + 1]);
-          }
-          if (index + 2 < widget.articles.length) {
-            _fetchAiSummaryIfNeeded(widget.articles[index + 2]);
-          }
-        },
-        itemBuilder: (context, index) {
-          final article = widget.articles[index];
-          final catColor = article.getCategoryColor(context);
+      body: Consumer<NewsProvider>(
+        builder: (context, prov, child) {
+          final isMainFeed = widget.articles.isNotEmpty && prov.articles.isNotEmpty && widget.articles.first.id == prov.articles.first.id;
+          final displayArticles = isMainFeed ? prov.articles : widget.articles;
+
+          return PageView.builder(
+            controller: _pageController,
+            itemCount: displayArticles.length,
+            onPageChanged: (index) {
+              setState(() {
+                _currentIndex = index;
+              });
+              _fetchAiSummaryIfNeeded(displayArticles[index]);
+              if (index + 1 < displayArticles.length) {
+                _fetchAiSummaryIfNeeded(displayArticles[index + 1]);
+              }
+              if (index + 2 < displayArticles.length) {
+                _fetchAiSummaryIfNeeded(displayArticles[index + 2]);
+              }
+              if (isMainFeed && index >= displayArticles.length - 3) {
+                prov.fetchMoreNews();
+              }
+            },
+            itemBuilder: (context, index) {
+              final article = displayArticles[index];
+              final catColor = article.getCategoryColor(context);
 
           return LayoutBuilder(
             builder: (context, constraints) {
@@ -923,6 +931,8 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
             },
           );
         },
+      );
+      },
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: provider.currentNavIndex,

@@ -4,6 +4,7 @@ require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 const express = require('express');
 const cors = require('cors');
 const cron = require('node-cron');
+const helmet = require('helmet');
 const { PORT } = require('./config/constants');
 const apiRoutes = require('./routes/apiRoutes');
 const articleStore = require('./services/articleStore');
@@ -11,7 +12,45 @@ const { syncFeeds } = require('./services/rssService');
 
 const app = express();
 
-app.use(cors());
+// Security Headers via Helmet
+app.use(helmet({
+  contentSecurityPolicy: false, // Allows inline CSS styling on the /download landing page
+  crossOriginEmbedderPolicy: false,
+}));
+
+// Strict CORS Policy
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim().toLowerCase())
+  : [];
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    // 1. Allow mobile clients, curl, and server-to-server requests (no Origin header)
+    if (!origin) return callback(null, true);
+
+    const lowerOrigin = origin.toLowerCase();
+
+    // 2. Allow local development origins (localhost or 127.0.0.1 on any port)
+    if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(lowerOrigin)) {
+      return callback(null, true);
+    }
+
+    // 3. Allow explicitly configured origins in .env (e.g., your production web domain)
+    if (allowedOrigins.includes(lowerOrigin)) {
+      return callback(null, true);
+    }
+
+    // Block unknown browser origins
+    console.warn(`[Security] Blocked unauthorized CORS request from origin: ${origin}`);
+    return callback(null, false);
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key'],
+  credentials: true,
+  maxAge: 86400,
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 
 // Mount API router
@@ -132,10 +171,18 @@ app.get(['/download', '/apk'], (req, res) => {
 </html>`);
 });
 
-// Periodic sync cron (every 20 mins)
+// Periodic sync cron (every 20 mins: at :00, :20, :40 of each hour)
 cron.schedule('*/20 * * * *', async () => {
-  const updated = await syncFeeds(articleStore.getArticles(), articleStore);
-  articleStore.setArticles(updated);
+  console.log(`[Cron] ========================================================`);
+  console.log(`[Cron] 🔄 20-minute periodic feed refresh started at ${new Date().toISOString()}`);
+  console.log(`[Cron] ========================================================`);
+  try {
+    const updated = await syncFeeds(articleStore.getArticles(), articleStore);
+    articleStore.setArticles(updated);
+    console.log(`[Cron] ✅ Periodic feed refresh complete at ${new Date().toISOString()} (${updated.length} active articles)`);
+  } catch (err) {
+    console.error(`[Cron] ❌ Periodic feed refresh encountered an error:`, err.message);
+  }
 });
 
 // Server bootstrap

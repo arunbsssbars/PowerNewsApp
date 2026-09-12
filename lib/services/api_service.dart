@@ -6,6 +6,16 @@ import '../models/news_article.dart';
 import '../models/morning_digest.dart';
 
 class ApiService {
+  static const String _clientSecret = String.fromEnvironment(
+    'APP_CLIENT_SECRET',
+    defaultValue: 'pwn_5a9b8c7d6e5f4g3h2i1j0',
+  );
+
+  Map<String, String> get _headers => {
+    'Content-Type': 'application/json',
+    'x-api-key': _clientSecret,
+  };
+
   static const List<String> candidateHosts = [
     // 1. Production Render Cloud URL (Works worldwide on 4G/5G/Wi-Fi)
     'https://powernewsapp-backend.onrender.com',
@@ -36,7 +46,7 @@ class ApiService {
     final List<Future<String?>> probes = candidateHosts.map((host) async {
       try {
         final uri = Uri.parse('$host/api/health');
-        final res = await http.get(uri).timeout(const Duration(seconds: 4));
+        final res = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 4));
         if (res.statusCode == 200) {
           return host;
         }
@@ -106,7 +116,7 @@ class ApiService {
     for (final host in hostsToTry) {
       try {
         final uri = Uri.parse('$host/api/news').replace(queryParameters: queryParams);
-        final response = await http.get(uri).timeout(const Duration(seconds: 4));
+        final response = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 4));
 
         if (response.statusCode == 200) {
           _activeHost = host;
@@ -257,7 +267,7 @@ class ApiService {
   Future<Map<String, int>> getPlayers() async {
     try {
       final uri = Uri.parse('$_activeHost/api/players');
-      final response = await http.get(uri).timeout(const Duration(seconds: 4));
+      final response = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 4));
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(utf8.decode(response.bodyBytes));
         return data.map((key, value) => MapEntry(key, value as int));
@@ -271,7 +281,7 @@ class ApiService {
   Future<Map<String, int>> getCities() async {
     try {
       final uri = Uri.parse('$_activeHost/api/cities');
-      final response = await http.get(uri).timeout(const Duration(seconds: 4));
+      final response = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 4));
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(utf8.decode(response.bodyBytes));
         return data.map((key, value) => MapEntry(key, value as int));
@@ -285,7 +295,7 @@ class ApiService {
   Future<Map<String, int>> getCategories() async {
     try {
       final uri = Uri.parse('$_activeHost/api/categories');
-      final response = await http.get(uri).timeout(const Duration(seconds: 4));
+      final response = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 4));
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(utf8.decode(response.bodyBytes));
         return data.map((key, value) => MapEntry(key, value as int));
@@ -299,7 +309,7 @@ class ApiService {
   Future<Map<String, int>> getStates() async {
     try {
       final uri = Uri.parse('$_activeHost/api/states');
-      final response = await http.get(uri).timeout(const Duration(seconds: 4));
+      final response = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 4));
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(utf8.decode(response.bodyBytes));
         return data.map((key, value) => MapEntry(key, value as int));
@@ -313,7 +323,7 @@ class ApiService {
   Future<Map<String, int>> getDiscoms() async {
     try {
       final uri = Uri.parse('$_activeHost/api/discoms');
-      final response = await http.get(uri).timeout(const Duration(seconds: 4));
+      final response = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 4));
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(utf8.decode(response.bodyBytes));
         return data.map((key, value) => MapEntry(key, value as int));
@@ -327,7 +337,7 @@ class ApiService {
   Future<Map<String, int>> getSources() async {
     try {
       final uri = Uri.parse('$_activeHost/api/sources');
-      final response = await http.get(uri).timeout(const Duration(seconds: 4));
+      final response = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 4));
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(utf8.decode(response.bodyBytes));
         return data.map((key, value) => MapEntry(key, value as int));
@@ -344,7 +354,7 @@ class ApiService {
     // 1. Try local aggregator endpoint
     try {
       final uri = Uri.parse('$_activeHost/api/article-content?url=${Uri.encodeComponent(url)}');
-      final res = await http.get(uri).timeout(const Duration(seconds: 4));
+      final res = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 4));
       if (res.statusCode == 200) {
         final data = json.decode(utf8.decode(res.bodyBytes));
         if (data['success'] == true && data['fullText'] != null) {
@@ -425,7 +435,7 @@ class ApiService {
     // Try active host first with a generous 12s timeout to accommodate on-demand article scraping + Gemini generation
     try {
       final uri = Uri.parse('$_activeHost/api/article-summary').replace(queryParameters: queryParams);
-      final res = await http.get(uri).timeout(const Duration(seconds: 12));
+      final res = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 12));
       if (res.statusCode == 200) {
         final data = json.decode(utf8.decode(res.bodyBytes));
         if (data['success'] == true && data['summary'] != null) {
@@ -441,7 +451,7 @@ class ApiService {
     if (fallbackHost.isNotEmpty) {
       try {
         final uri = Uri.parse('$fallbackHost/api/article-summary').replace(queryParameters: queryParams);
-        final res = await http.get(uri).timeout(const Duration(seconds: 3));
+        final res = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 3));
         if (res.statusCode == 200) {
           final data = json.decode(utf8.decode(res.bodyBytes));
           if (data['success'] == true && data['summary'] != null) {
@@ -457,7 +467,7 @@ class ApiService {
   Future<MorningDigest?> fetchMorningDigest() async {
     try {
       final uri = Uri.parse('$_activeHost/api/morning-digest');
-      final res = await http.get(uri).timeout(const Duration(seconds: 6));
+      final res = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 6));
       if (res.statusCode == 200) {
         final data = json.decode(utf8.decode(res.bodyBytes));
         if (data is Map<String, dynamic>) {
@@ -477,7 +487,7 @@ class ApiService {
       final uri = Uri.parse('$_activeHost/api/ask-gemini');
       final res = await http.post(
         uri,
-        headers: {'Content-Type': 'application/json'},
+        headers: _headers,
         body: json.encode({
           'question': question,
           'persona': persona,
@@ -499,7 +509,7 @@ class ApiService {
   Future<bool> refreshBackend() async {
     try {
       final uri = Uri.parse('$_activeHost/api/refresh');
-      final response = await http.get(uri).timeout(const Duration(seconds: 15));
+      final response = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 15));
       return response.statusCode == 200;
     } catch (e) {
       debugPrint('[ApiService] Error refreshing backend: $e');

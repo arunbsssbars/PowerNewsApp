@@ -7,6 +7,8 @@
     "start": "node --optimize-for-size --max-old-space-size=384 news-aggregator.js",
     "dev": "node --optimize-for-size --max-old-space-size=384 --watch news-aggregator.js",
     "check": "node --check server/index.js",
+    "build:apk:obfuscated": "flutter build apk --release --obfuscate --split-debug-info=build/app/outputs/symbols",
+    "build:appbundle:obfuscated": "flutter build appbundle --release --obfuscate --split-debug-info=build/app/outputs/symbols",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
@@ -25,8 +27,10 @@
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.7.0",
     "git": "^0.1.5",
     "google-news-url-decoder": "^1.2.2",
+    "helmet": "^8.3.0",
     "node-cron": "^4.6.0",
     "rss-parser": "^3.13.0"
   }
