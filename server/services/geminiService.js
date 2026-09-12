@@ -242,8 +242,9 @@ async function runGeminiBatchSummarization(articles = []) {
 
   for (let i = 0; i < unsummarized.length; i += GEMINI_BATCH_SIZE) {
     if (Date.now() < geminiCoolingDownUntil) {
-      console.log('[Gemini AI] Quota cooling down. Pausing batch to prioritize on-demand user requests.');
-      break;
+      const waitMs = geminiCoolingDownUntil - Date.now() + 1500;
+      console.log(`[Gemini AI] Quota cooling down. Waiting ${Math.ceil(waitMs / 1000)}s before resuming batch (${processed}/${unsummarized.length} done so far)...`);
+      await new Promise(r => setTimeout(r, waitMs));
     }
 
     const wave = unsummarized.slice(i, i + GEMINI_BATCH_SIZE);
