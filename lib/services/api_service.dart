@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'package:intl/intl.dart';
 import '../models/news_article.dart';
 import '../models/morning_digest.dart';
 
@@ -40,11 +39,12 @@ class ApiService {
   }
 
   Future<bool> checkAndSelectHost() async {
-    // Probe candidate hosts in parallel with 8s timeout for cloud handshake
+    // Probe candidate hosts in parallel (12s for cloud host to allow cold boot, 3s for local)
     final List<Future<String?>> probes = candidateHosts.map((host) async {
       try {
         final uri = Uri.parse('$host/api/health');
-        final res = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 8));
+        final timeoutSec = host == renderCloudHost ? 12 : 3;
+        final res = await http.get(uri, headers: _headers).timeout(Duration(seconds: timeoutSec));
         if (res.statusCode == 200) {
           try {
             final hData = json.decode(utf8.decode(res.bodyBytes));
@@ -108,7 +108,8 @@ class ApiService {
     for (final host in hostsToTry) {
       try {
         final uri = Uri.parse('$host/api/news').replace(queryParameters: queryParams);
-        final response = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 4));
+        final timeoutSec = host == renderCloudHost ? 12 : 3;
+        final response = await http.get(uri, headers: _headers).timeout(Duration(seconds: timeoutSec));
 
         if (response.statusCode == 200) {
           _activeHost = host;
@@ -130,138 +131,9 @@ class ApiService {
       }
     }
 
-    // Direct Public Internet Fallback
-    final publicArticles = await _fetchDirectPublicRSS(
-      category: category,
-      player: player,
-      state: state,
-      city: city,
-      search: search,
-    );
-
-    if (publicArticles.isNotEmpty) {
-      return publicArticles;
-    }
-
-    throw Exception('Could not fetch news from server or direct internet sources.');
+    throw Exception('Could not connect to PowerNews cloud server ($renderCloudHost).');
   }
 
-  Future<List<NewsArticle>> _fetchDirectPublicRSS({
-    String? category,
-    String? player,
-    String? state,
-    String? city,
-    String? search,
-  }) async {
-    final queryParts = <String>[];
-    if (search != null && search.isNotEmpty) {
-      queryParts.add(search);
-    } else if (player != null && player.isNotEmpty && player != 'All' && player != 'All Players') {
-      queryParts.add('$player power sector India');
-    } else if (category != null && category.isNotEmpty && category != 'All') {
-      queryParts.add('$category power sector India');
-    } else if (state != null && state.isNotEmpty && state != 'All States') {
-      queryParts.add('$state power electricity discom');
-    } else if (city != null && city.isNotEmpty && city != 'All Cities') {
-      queryParts.add('$city electricity power discom');
-    } else {
-      queryParts.add('India power sector electricity transmission distribution renewable');
-    }
-
-    final query = queryParts.join(' ');
-    final encoded = Uri.encodeComponent(query);
-    final url = 'https://news.google.com/rss/search?q=$encoded&hl=en-IN&gl=IN&ceid=IN:en';
-
-    try {
-      final res = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 8));
-      if (res.statusCode == 200) {
-        final xml = utf8.decode(res.bodyBytes);
-        return _parseRssXml(xml, defaultCategory: category, defaultPlayer: player, defaultState: state, defaultCity: city);
-      }
-    } catch (e) {
-      debugPrint('[ApiService] Direct public RSS fetch error: $e');
-    }
-    return [];
-  }
-
-  List<NewsArticle> _parseRssXml(String xml, {String? defaultCategory, String? defaultPlayer, String? defaultState, String? defaultCity}) {
-    final articles = <NewsArticle>[];
-    final itemPattern = RegExp(r'<item>(.*?)</item>', dotAll: true);
-    final matches = itemPattern.allMatches(xml);
-
-    for (final m in matches) {
-      final itemBlock = m.group(1) ?? '';
-      final titleMatch = RegExp(r'<title>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?</title>', dotAll: true).firstMatch(itemBlock);
-      final linkMatch = RegExp(r'<link>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?</link>', dotAll: true).firstMatch(itemBlock);
-      final pubDateMatch = RegExp(r'<(?:pubDate|dc:date|published|updated)>(.*?)</(?:pubDate|dc:date|published|updated)>', caseSensitive: false, dotAll: true).firstMatch(itemBlock);
-      final descMatch = RegExp(r'<description>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?</description>', dotAll: true).firstMatch(itemBlock);
-
-      var title = (titleMatch?.group(1) ?? '').trim();
-      final link = (linkMatch?.group(1) ?? '').trim();
-      final pubDateStr = (pubDateMatch?.group(1) ?? '').trim();
-      var desc = (descMatch?.group(1) ?? '').replaceAll(RegExp(r'<[^>]*>'), ' ').trim();
-
-      if (title.isEmpty) continue;
-
-      var source = 'Power Intelligence';
-      if (title.contains(' - ')) {
-        final parts = title.split(' - ');
-        if (parts.length > 1) {
-          source = parts.last.trim();
-          title = parts.sublist(0, parts.length - 1).join(' - ').trim();
-        }
-      }
-
-      DateTime pubDate;
-      try {
-        DateTime? parsed = DateTime.tryParse(pubDateStr);
-        if (parsed == null && pubDateStr.isNotEmpty) {
-          final formats = [
-            'EEE, dd MMM yyyy HH:mm:ss Z',
-            'EEE, dd MMM yyyy HH:mm:ss zzz',
-            'EEE, dd MMM yyyy HH:mm:ss',
-            'yyyy-MM-ddTHH:mm:ssZ',
-            'yyyy-MM-ddTHH:mm:ss.SSSZ',
-            'dd MMM yyyy HH:mm:ss',
-          ];
-          for (final fmt in formats) {
-            try {
-              parsed = DateFormat(fmt, 'en_US').parse(pubDateStr);
-              break;
-            } catch (_) {}
-          }
-        }
-        pubDate = parsed ?? DateTime.now();
-        if (pubDate.isAfter(DateTime.now().add(const Duration(hours: 24)))) {
-          pubDate = DateTime.now();
-        }
-      } catch (_) {
-        pubDate = DateTime.now();
-      }
-
-      // Enforce 7-day retention cutoff (previous 1 week only)
-      if (pubDate.isBefore(DateTime.now().subtract(const Duration(days: 7)))) {
-        continue;
-      }
-
-      final id = (link.isNotEmpty ? link.hashCode : title.hashCode).abs().toString();
-      final cat = (defaultCategory != null && defaultCategory != 'All') ? defaultCategory.toLowerCase() : 'generation';
-
-      articles.add(NewsArticle(
-        id: id,
-        title: title,
-        summary: desc.isNotEmpty ? desc : title,
-        url: link.isNotEmpty ? link : 'https://news.google.com',
-        source: source,
-        publishedAt: pubDate,
-        categories: [cat],
-        player: defaultPlayer,
-        state: defaultState ?? 'National / Pan-India',
-        city: defaultCity,
-      ));
-    }
-    return articles;
-  }
 
   Future<Map<String, int>> getPlayers() async {
     try {

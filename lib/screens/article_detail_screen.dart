@@ -299,9 +299,14 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
 
   void _fetchAiSummaryIfNeeded(NewsArticle article) async {
     final cached = _aiSummaries[article.id];
-    if (cached != null && cached.contains('•') && cached.length > 30) return;
-    if (article.summary.contains('•') && article.summary.length > 50) {
-      _aiSummaries[article.id] = article.summary;
+    if (cached != null && (cached.length >= 70 || cached.contains('•'))) return;
+
+    final existingSummary = article.summary.trim();
+    final normTitle = article.title.trim().toLowerCase();
+    if (existingSummary.length >= 70 &&
+        existingSummary.toLowerCase() != normTitle &&
+        !existingSummary.toLowerCase().startsWith(normTitle)) {
+      _aiSummaries[article.id] = existingSummary;
       return;
     }
 
@@ -743,7 +748,9 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
                                 const SizedBox(height: 12),
 
                                 // When AI summary is loading, show animated skeleton placeholder
-                                if (_loadingAiArticleIds.contains(article.id) && !(_aiSummaries[article.id] ?? article.summary).contains('•'))
+                                if (_loadingAiArticleIds.contains(article.id) &&
+                                    ((_aiSummaries[article.id] ?? article.summary).trim().length < 70 ||
+                                        (_aiSummaries[article.id] ?? article.summary).trim().toLowerCase() == article.title.trim().toLowerCase()))
                                   _SummarySkeletonLoader(isDark: isDark)
                                 else
                                   // Justified Full-Width Summary Content

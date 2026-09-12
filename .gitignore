@@ -8,6 +8,9 @@
 *.pem
 *.keystore
 *.jks
+*serviceAccountKey*.json
+*service-account*.json
+firebase-adminsdk*.json
 
 # -----------------------------------------------------------------------------
 # Node.js & Backend
@@ -20,8 +23,8 @@ pnpm-debug.log*
 lerna-debug.log*
 .pnpm-store/
 
-# Runtime caches & data (ai-summaries-cache.json tracked to pre-seed cloud deployments)
-!ai-summaries-cache.json
+# Runtime caches & data (persisted in Cloud Firestore)
+ai-summaries-cache.json
 server/data/*.json
 !server/data/.gitkeep
 

@@ -14,7 +14,6 @@ const {
 const {
   ai,
   aiSummaryCache,
-  saveAiSummaryCache,
   geminiCoolingDownUntil,
   generateGeminiPowerSummary,
   runGeminiBatchSummarization,
@@ -101,9 +100,7 @@ function getActiveArticles({ requireAiSummary = true } = {}) {
         title: cleanHeadline(a.title),
         summary: aiSummaryCache[a.id]
       }));
-    if (summarized.length >= 5 || retained.length === 0) {
-      return summarized;
-    }
+    return summarized;
   }
   return retained.map(a => ({
     ...a,
@@ -269,7 +266,6 @@ router.get('/article-summary', async (req, res) => {
 
     if (id && summary) {
       aiSummaryCache[id] = summary;
-      saveAiSummaryCache();
       const article = articleStore.getArticles().find(a => a.id === id);
       if (article) article.summary = summary;
     }

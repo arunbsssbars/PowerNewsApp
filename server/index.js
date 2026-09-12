@@ -245,6 +245,17 @@ cron.schedule('*/20 * * * *', async () => {
   }
 });
 
+// Daily Firestore storage self-regulation cron (Runs every day at 03:30 AM)
+cron.schedule('30 3 * * *', async () => {
+  console.log(`[Cron] Running daily Firestore storage check (850 MB high-watermark check)...`);
+  try {
+    const { purgeOldestIfNearLimit } = require('./services/firestoreService');
+    await purgeOldestIfNearLimit();
+  } catch (err) {
+    console.warn(`[Cron] Firestore storage check failed:`, err.message);
+  }
+});
+
 // Server bootstrap
 let server = null;
 
@@ -253,6 +264,14 @@ async function startServer() {
     console.log(`[PowerNews Aggregator] Running on port ${PORT} (0.0.0.0)`);
     const initialArticles = await syncFeeds(articleStore.getArticles(), articleStore);
     articleStore.setArticles(initialArticles);
+
+    // Initial storage check 30 seconds after boot
+    setTimeout(async () => {
+      try {
+        const { purgeOldestIfNearLimit } = require('./services/firestoreService');
+        await purgeOldestIfNearLimit();
+      } catch (_) {}
+    }, 30000);
   });
 }
 

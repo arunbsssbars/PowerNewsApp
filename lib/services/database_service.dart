@@ -26,12 +26,24 @@ class DatabaseService {
     final dbPath = await getDatabasesPath();
     final path = p.join(dbPath, _dbName);
 
-    return openDatabase(
+    final db = await openDatabase(
       path,
       version: _dbVersion,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
+    await _purgeUnsummarized(db);
+    return db;
+  }
+
+  Future<void> _purgeUnsummarized(Database db) async {
+    try {
+      await db.delete(
+        'articles',
+        where: 'is_bookmarked = 0 AND (LOWER(TRIM(summary)) = LOWER(TRIM(title)) OR TRIM(summary) = \'\' OR summary LIKE ? OR summary LIKE ?)',
+        whereArgs: ['%prohibited content policy%', '• A global renewable energy power plant step%'],
+      );
+    } catch (_) {}
   }
 
   Future<void> _onCreate(Database db, int version) async {
@@ -98,12 +110,22 @@ class DatabaseService {
   /// Upsert articles into SQLite (merge new + existing, deduplicate by ID)
   Future<int> upsertArticles(List<NewsArticle> articles) async {
     if (articles.isEmpty) return 0;
+    // Gatekeep: Reject empty summaries or raw titles masquerading as summaries
+    final validArticles = articles.where((a) {
+      final s = a.summary.trim();
+      return s.isNotEmpty &&
+          s.toLowerCase() != a.title.trim().toLowerCase() &&
+          !s.contains('prohibited content policy') &&
+          !s.startsWith('• A global renewable energy power plant step');
+    }).toList();
+    if (validArticles.isEmpty) return 0;
+
     final db = await database;
     final now = DateTime.now().toIso8601String();
     int count = 0;
 
     final batch = db.batch();
-    for (final a in articles) {
+    for (final a in validArticles) {
       batch.rawInsert('''
         INSERT OR REPLACE INTO articles
           (id, title, summary, url, source, published_at, categories, player, city, state,
@@ -142,7 +164,13 @@ class DatabaseService {
       orderBy: 'published_at DESC',
     );
 
-    return rows.map(_rowToArticle).toList();
+    return rows.map(_rowToArticle).where((a) {
+      final s = a.summary.trim();
+      return s.isNotEmpty &&
+          s.toLowerCase() != a.title.trim().toLowerCase() &&
+          !s.contains('prohibited content policy') &&
+          !s.startsWith('• A global renewable energy power plant step');
+    }).toList();
   }
 
   /// Get only bookmarked articles

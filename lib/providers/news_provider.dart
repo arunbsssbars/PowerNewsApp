@@ -55,6 +55,7 @@ class NewsProvider extends ChangeNotifier {
   int _currentPage = 1;
   bool _isLocating = false;
   bool _isOffline = false;
+  bool _isRetrying = false;
   bool _noInternetOnScroll = false;
   String? _errorMessage;
   bool _hasInitialDataLoaded = false;
@@ -139,6 +140,7 @@ class NewsProvider extends ChangeNotifier {
   bool get hasMore => _hasMore;
   bool get isLocating => _isLocating;
   bool get isOffline => _isOffline;
+  bool get isRetrying => _isRetrying;
   bool get noInternetOnScroll => _noInternetOnScroll;
   String? get errorMessage => _errorMessage;
   String get selectedCategory => _selectedCategory;
@@ -958,9 +960,28 @@ class NewsProvider extends ChangeNotifier {
     return _sortArticles(filtered);
   }
 
+  Future<void> retryConnection() async {
+    if (_isRetrying) return;
+    _isRetrying = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      debugPrint('[NewsProvider] Retrying host handshake and reconnecting...');
+      await _apiService.checkAndSelectHost();
+      await fetchNews(isRefresh: true);
+    } catch (e) {
+      debugPrint('[NewsProvider] Retry connection failed: $e');
+    } finally {
+      _isRetrying = false;
+      notifyListeners();
+    }
+  }
+
   Future<void> fetchNews({bool isRefresh = false}) async {
     if (isRefresh) {
       _isRefreshing = true;
+      notifyListeners();
     } else {
       _isLoading = _articles.isEmpty;
       _currentPage = 1;
@@ -1009,7 +1030,8 @@ class NewsProvider extends ChangeNotifier {
       } else {
         _articles = sorted;
         _hasMore = sorted.length == _pageSize;
-        await _cacheService.cacheArticles(news);
+        // Strictly persist ONLY verified AI-summarized articles into local cache
+        await _cacheService.cacheArticles(cleanNews);
       }
 
       // Track genuinely new incoming articles (older articles are NEVER considered new)
@@ -1071,11 +1093,10 @@ class NewsProvider extends ChangeNotifier {
           _cachedFullList = filteredCached;
           _articles = _cachedFullList.take(_pageSize).toList();
           _hasMore = _cachedFullList.length > _pageSize;
-        } else if (_articles.isEmpty) {
-          // If no articles match the strict filter, show first available cached news
-          _cachedFullList = cached;
-          _articles = cached.take(_pageSize).toList();
-          _hasMore = cached.length > _pageSize;
+        } else {
+          _cachedFullList = [];
+          _articles = [];
+          _hasMore = false;
         }
         _errorMessage = null;
       } else if (_articles.isNotEmpty) {
@@ -1098,25 +1119,30 @@ class NewsProvider extends ChangeNotifier {
     _noInternetOnScroll = false;
     notifyListeners();
 
-    if (_isOffline) {
-      final nextOffset = _currentPage * _pageSize;
-      final nextBatch = _cachedFullList.skip(nextOffset).take(_pageSize).toList();
-
+    // 1. Instant Local Pagination: If in-memory cache has more items, append next batch with zero latency
+    if (_cachedFullList.length > _articles.length) {
+      final nextBatch = _cachedFullList.skip(_articles.length).take(_pageSize).toList();
       if (nextBatch.isNotEmpty) {
-        _currentPage++;
         _articles.addAll(nextBatch);
-        _hasMore = _cachedFullList.length > (_currentPage * _pageSize);
-      } else {
-        _hasMore = false;
-        _noInternetOnScroll = true;
+        _hasMore = _cachedFullList.length > _articles.length;
+        _isLoadingMore = false;
+        notifyListeners();
+        return;
       }
+    }
+
+    // 2. Offline: If cache is exhausted, mark hasMore false
+    if (_isOffline) {
+      _hasMore = false;
       _isLoadingMore = false;
+      _noInternetOnScroll = true;
       notifyListeners();
       return;
     }
 
+    // 3. Online: Fetch next page from backend
     try {
-      final nextPage = _currentPage + 1;
+      final nextPage = (_articles.length ~/ _pageSize) + 1;
       final moreNews = await _apiService.getNews(
         category: _selectedCategory == 'All' ? null : _selectedCategory,
         player: (_selectedPlayer == 'All' || _selectedPlayer == 'All Players') ? null : _selectedPlayer,
@@ -1128,11 +1154,18 @@ class NewsProvider extends ChangeNotifier {
         limit: _pageSize,
       );
 
-      if (moreNews.isNotEmpty) {
-        _currentPage = nextPage;
-        _articles.addAll(moreNews);
-        _hasMore = moreNews.length == _pageSize;
-        await _cacheService.cacheArticles(moreNews);
+      final cleanMore = moreNews.where((a) {
+        final s = a.summary.trim();
+        return s.length >= 75 &&
+            s.toLowerCase() != a.title.trim().toLowerCase() &&
+            !s.contains('prohibited content policy') &&
+            !s.startsWith('• A global renewable energy power plant step');
+      }).toList();
+
+      if (cleanMore.isNotEmpty) {
+        _articles.addAll(cleanMore);
+        _hasMore = cleanMore.length == _pageSize;
+        await _cacheService.cacheArticles(cleanMore);
       } else {
         _hasMore = false;
       }

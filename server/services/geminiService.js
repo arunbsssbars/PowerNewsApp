@@ -1,10 +1,7 @@
-const fs = require('fs');
 const { GoogleGenAI } = require('@google/genai');
 const {
-  CACHE_FILE,
   GEMINI_BATCH_SIZE,
   GEMINI_WAVE_DELAY_MS,
-  GEMINI_SAVE_EVERY,
   MAX_CACHED_SUMMARIES,
 } = require('../config/constants');
 const {
@@ -13,6 +10,10 @@ const {
 } = require('./classifierService');
 const { calculateSimilarity } = require('./clusterService');
 const { scrapeFullArticle } = require('./scraperService');
+const {
+  loadAllSummariesFromFirestore,
+  saveSummaryToFirestore,
+} = require('./firestoreService');
 
 const apiKey = process.env.GEMINI_API_KEY;
 let ai = null;
@@ -27,22 +28,33 @@ if (apiKey) {
   console.warn('[Gemini AI] No GEMINI_API_KEY found in .env. AI summarization will fall back to smart heuristic extractor.');
 }
 
+// In-memory RAM cache for 0ms API response times
 let aiSummaryCache = {};
-try {
-  if (fs.existsSync(CACHE_FILE)) {
-    aiSummaryCache = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8'));
-    console.log(`[Gemini Cache] Loaded ${Object.keys(aiSummaryCache).length} cached summaries.`);
+
+// Asynchronously synchronize with Cloud Firestore on startup
+setImmediate(async () => {
+  try {
+    const cloudSummaries = await loadAllSummariesFromFirestore();
+    const cloudCount = Object.keys(cloudSummaries).length;
+    if (cloudCount > 0) {
+      let merged = 0;
+      for (const [id, summary] of Object.entries(cloudSummaries)) {
+        if (!aiSummaryCache[id]) {
+          aiSummaryCache[id] = summary;
+          merged++;
+        }
+      }
+      if (merged > 0) {
+        console.log(`[Firestore Sync] Loaded and merged ${merged} active summaries from Cloud Firestore into RAM.`);
+      }
+    }
+  } catch (err) {
+    console.warn('[Firestore Sync] Async sync warning:', err.message);
   }
-} catch (e) {
-  console.warn('[Gemini Cache] Load error:', e.message);
-}
+});
 
 function saveAiSummaryCache() {
-  try {
-    fs.writeFileSync(CACHE_FILE, JSON.stringify(aiSummaryCache, null, 2), 'utf8');
-  } catch (e) {
-    console.warn('[Gemini Cache] Save error:', e.message);
-  }
+  // Pure in-memory cache; persistence is handled asynchronously via Cloud Firestore.
 }
 
 function pruneAiSummaryCache(activeArticles = []) {
@@ -55,7 +67,6 @@ function pruneAiSummaryCache(activeArticles = []) {
         if (Object.keys(aiSummaryCache).length <= MAX_CACHED_SUMMARIES) break;
       }
     }
-    saveAiSummaryCache();
   }
 }
 
@@ -164,7 +175,13 @@ STRICT EDITORIAL GUIDELINES:
         if (aiText && aiText.length > 40) {
           if (articleId) {
             aiSummaryCache[articleId] = aiText;
-            saveAiSummaryCache();
+            saveSummaryToFirestore(articleId, aiText, {
+              title: cleanTitle,
+              category,
+              player,
+              state,
+              discom,
+            });
           }
           const wordCount = aiText.split(/\s+/).filter(Boolean).length;
           console.log(`[Gemini AI] Synthesized narrative story (${wordCount} words) for "${cleanTitle.slice(0, 40)}" via ${model}`);
@@ -223,7 +240,15 @@ STRICT EDITORIAL GUIDELINES:
   const result = cleanSummaryOutput(fallbackBullets.join('\n'));
   if (articleId && result.length > 20) {
     aiSummaryCache[articleId] = result;
-    saveAiSummaryCache();
+    if (result.length >= 60) {
+      saveSummaryToFirestore(articleId, result, {
+        title: cleanTitle,
+        category,
+        player,
+        state,
+        discom,
+      });
+    }
   }
   return result;
 }
@@ -242,7 +267,6 @@ async function runGeminiBatchSummarization(articles = []) {
 
   console.log(`[Gemini AI] Starting full batch summarization: ${unsummarized.length} articles across all outlets, OEMs, utilities, DISCOMs & states...`);
   let processed = 0;
-  let savedCount = 0;
 
   for (let i = 0; i < unsummarized.length; i += GEMINI_BATCH_SIZE) {
     if (Date.now() < geminiCoolingDownUntil) {
@@ -263,10 +287,6 @@ async function runGeminiBatchSummarization(articles = []) {
           if (aiSum && aiSum.length > 30) {
             a.summary = aiSum;
             processed++;
-            savedCount++;
-            if (savedCount % GEMINI_SAVE_EVERY === 0) {
-              saveAiSummaryCache();
-            }
           }
         } catch (_) { /* non-fatal */ }
       })
@@ -277,8 +297,7 @@ async function runGeminiBatchSummarization(articles = []) {
     }
   }
 
-  saveAiSummaryCache();
-  console.log(`[Gemini AI] Batch complete: ${processed}/${unsummarized.length} articles summarized. Total cache: ${Object.keys(aiSummaryCache).length}`);
+  console.log(`[Gemini AI] Batch complete: ${processed}/${unsummarized.length} articles summarized. Total RAM cache: ${Object.keys(aiSummaryCache).length}`);
 }
 
 // Daily Digest Cache

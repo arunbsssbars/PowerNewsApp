@@ -13,7 +13,6 @@ RUN npm install --omit=dev
 # Copy backend files and configurations
 COPY server/ ./server/
 COPY news-aggregator.js ./
-COPY ai-summaries-cache.json* ./
 
 # Default environment variables
 ENV NODE_ENV=production

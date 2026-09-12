@@ -53,7 +53,14 @@ class FormattedSummaryView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cleanSummary = NewsArticle.cleanHtmlAndEntities(summary);
-    final isHeadlineDuplicate = title != null && cleanSummary.trim().toLowerCase() == title!.trim().toLowerCase();
+    final normSummary = cleanSummary.trim().toLowerCase();
+    final normTitle = (title ?? '').trim().toLowerCase();
+    final isHeadlineDuplicate = normSummary.isEmpty ||
+        (normTitle.isNotEmpty &&
+            (normSummary == normTitle ||
+                normSummary.startsWith(normTitle) && (normSummary.length - normTitle.length < 50) ||
+                normTitle.startsWith(normSummary))) ||
+        cleanSummary.length < 60;
 
     final textColor = isDark ? const Color(0xFFE6EDF3) : const Color(0xFF1E293B);
     final highlightColor = isDark ? const Color(0xFF38BDF8) : const Color(0xFF1D4ED8);
@@ -73,10 +80,48 @@ class FormattedSummaryView extends StatelessWidget {
     );
 
     if (cleanSummary.isEmpty || isHeadlineDuplicate) {
-      return Text(
-        'This power sector intelligence dispatch covers key grid, generation, transmission, and utility developments.',
-        textAlign: TextAlign.justify,
-        style: baseStyle.copyWith(color: isDark ? const Color(0xFF9DA7B3) : const Color(0xFF64748B)),
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF131B2A) : const Color(0xFFF1F5F9),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isDark ? const Color(0xFF22324C) : const Color(0xFFCBD5E1),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.auto_awesome_rounded,
+                  size: 13,
+                  color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF2563EB),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'EXECUTIVE INTELLIGENCE IN PROCESS',
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.3,
+                    color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF2563EB),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'A structured 50-word power sector intelligence brief is being generated for this update. Read the full live dispatch directly via the publisher button below.',
+              style: baseStyle.copyWith(
+                fontSize: 13,
+                height: 1.45,
+                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+              ),
+            ),
+          ],
+        ),
       );
     }
 
@@ -131,11 +176,11 @@ class FormattedSummaryView extends StatelessWidget {
                   ),
                 ),
                 Expanded(
-                  child: RichText(
-                    textAlign: TextAlign.justify,
-                    text: TextSpan(
+                  child: Text.rich(
+                    TextSpan(
                       children: _buildHighlightedSpans(point, baseStyle, highlightStyle),
                     ),
+                    textAlign: TextAlign.justify,
                   ),
                 ),
               ],
@@ -157,11 +202,11 @@ class FormattedSummaryView extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         // Narrative Prose with Highlighted Data Metrics (Full width, Justified)
-        RichText(
-          textAlign: TextAlign.justify,
-          text: TextSpan(
+        Text.rich(
+          TextSpan(
             children: _buildHighlightedSpans(cleanProse, baseStyle, highlightStyle),
           ),
+          textAlign: TextAlign.justify,
         ),
       ],
     );

@@ -369,10 +369,10 @@ class _FeedViewState extends State<FeedView> {
                           ),
                           const SizedBox(width: 6),
                           InkWell(
-                            onTap: () => provider.fetchNews(isRefresh: true),
+                            onTap: provider.isRetrying ? null : () => provider.retryConnection(),
                             borderRadius: BorderRadius.circular(6),
                             child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                               decoration: BoxDecoration(
                                 color: const Color(0xFFF59E0B).withOpacity(isDark ? 0.25 : 0.15),
                                 borderRadius: BorderRadius.circular(6),
@@ -380,14 +380,26 @@ class _FeedViewState extends State<FeedView> {
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(
-                                    Icons.refresh_rounded,
-                                    size: 12,
-                                    color: isDark ? const Color(0xFFFDE68A) : const Color(0xFF92400E),
-                                  ),
-                                  const SizedBox(width: 3),
+                                  if (provider.isRetrying)
+                                    SizedBox(
+                                      width: 11,
+                                      height: 11,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor: AlwaysStoppedAnimation<Color>(
+                                          isDark ? const Color(0xFFFDE68A) : const Color(0xFF92400E),
+                                        ),
+                                      ),
+                                    )
+                                  else
+                                    Icon(
+                                      Icons.refresh_rounded,
+                                      size: 12,
+                                      color: isDark ? const Color(0xFFFDE68A) : const Color(0xFF92400E),
+                                    ),
+                                  const SizedBox(width: 4),
                                   Text(
-                                    'Retry',
+                                    provider.isRetrying ? 'Connecting...' : 'Retry',
                                     style: TextStyle(
                                       fontSize: 11,
                                       fontWeight: FontWeight.w700,

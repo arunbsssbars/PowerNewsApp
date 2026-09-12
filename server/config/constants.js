@@ -3,9 +3,6 @@ const path = require('path');
 // Server Port (Dynamic in production, e.g. Render sets PORT=10000)
 const PORT = process.env.PORT || 3000;
 
-// Path to AI Summaries Disk Cache
-const CACHE_FILE = path.join(__dirname, '..', '..', 'ai-summaries-cache.json');
-
 // Article Retention Window: 7 days in milliseconds
 const RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -18,7 +15,6 @@ const MAX_CACHED_SUMMARIES = 2000;
 // Gemini Rate Limit & Batching Constants (tuned for free-tier 15 RPM safety)
 const GEMINI_BATCH_SIZE = 1;
 const GEMINI_WAVE_DELAY_MS = 5000;
-const GEMINI_SAVE_EVERY = 5;
 
 // Scraper Constants
 const SCRAPER_USER_AGENTS = [
@@ -33,13 +29,11 @@ const APP_REDIRECT_URL_RE = /\/\/(?:play\.google\.com|apps\.apple\.com|itunes\.a
 
 module.exports = {
   PORT,
-  CACHE_FILE,
   RETENTION_MS,
   DEFAULT_PAGE_SIZE,
   MAX_CACHED_SUMMARIES,
   GEMINI_BATCH_SIZE,
   GEMINI_WAVE_DELAY_MS,
-  GEMINI_SAVE_EVERY,
   SCRAPER_USER_AGENTS,
   APP_REDIRECT_URL_RE,
 };
