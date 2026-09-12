@@ -12,8 +12,8 @@ const RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 const MAX_CACHED_SUMMARIES = 2000;
 
 // Gemini Rate Limit & Batching Constants
-const GEMINI_BATCH_SIZE = 1;
-const GEMINI_WAVE_DELAY_MS = 5000; // ~12 RPM (under free-tier 15 RPM cap)
+const GEMINI_BATCH_SIZE = 3;
+const GEMINI_WAVE_DELAY_MS = 12000; // 3 per 12s = 15 RPM, within free-tier cap
 const GEMINI_SAVE_EVERY = 5;
 
 // Scraper Constants

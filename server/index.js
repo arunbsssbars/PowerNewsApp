@@ -134,7 +134,7 @@ app.get(['/download', '/apk'], (req, res) => {
 
 // Periodic sync cron (every 20 mins)
 cron.schedule('*/20 * * * *', async () => {
-  const updated = await syncFeeds(articleStore.getArticles());
+  const updated = await syncFeeds(articleStore.getArticles(), articleStore);
   articleStore.setArticles(updated);
 });
 
@@ -144,7 +144,7 @@ let server = null;
 async function startServer() {
   server = app.listen(PORT, '0.0.0.0', async () => {
     console.log(`[PowerNews Aggregator] Running on port ${PORT} (0.0.0.0)`);
-    const initialArticles = await syncFeeds(articleStore.getArticles());
+    const initialArticles = await syncFeeds(articleStore.getArticles(), articleStore);
     articleStore.setArticles(initialArticles);
   });
 }
