@@ -96,5 +96,22 @@ void main() {
       provider.togglePersonaOnlyFilter();
       expect(provider.personaOnlyFilter, false);
     });
+
+    test('markAllNotificationsAsRead and applyNewArticles clear newArticlesCount while preserving notification inbox', () async {
+      expect(provider.newArticlesCount, 0);
+
+      // Trigger markAllNotificationsAsRead
+      provider.markAllNotificationsAsRead();
+      expect(provider.newArticlesCount, 0);
+
+      // Trigger applyNewArticles
+      await provider.applyNewArticles();
+      expect(provider.newArticlesCount, 0);
+
+      // Trigger clearAllNotifications
+      provider.clearAllNotifications();
+      expect(provider.newArticlesCount, 0);
+      expect(provider.notificationArticles, isEmpty);
+    });
   });
 }

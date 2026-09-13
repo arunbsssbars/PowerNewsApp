@@ -213,6 +213,43 @@ class NewsCard extends StatelessWidget {
                   ],
                 ),
 
+                // Lead News Image (Publisher CDN / Zero Storage Cost)
+                if (article.imageUrl != null && article.imageUrl!.startsWith('http')) ...[
+                  const SizedBox(height: 10),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: AspectRatio(
+                      aspectRatio: 16 / 9,
+                      child: Image.network(
+                        article.imageUrl!,
+                        fit: BoxFit.cover,
+                        cacheWidth: 640,
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return Container(
+                            color: isDark ? const Color(0xFF1E2633) : const Color(0xFFF1F5F9),
+                            child: Center(
+                              child: SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  value: loadingProgress.expectedTotalBytes != null
+                                      ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                                      : null,
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                        errorBuilder: (context, error, stackTrace) {
+                          return const SizedBox.shrink();
+                        },
+                      ),
+                    ),
+                  ),
+                ],
+
                 const SizedBox(height: 10),
 
                 // News Headline

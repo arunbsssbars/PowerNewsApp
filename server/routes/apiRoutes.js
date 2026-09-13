@@ -95,15 +95,19 @@ function getActiveArticles() {
   const retained = filterArticlesRetention7Days(cachedArticles);
   return retained
     .filter(a => {
-      const s = a.id && aiSummaryCache[a.id];
-      return Boolean(s && s.length >= 75 && !s.startsWith('• '));
+      const s = (a.id && aiSummaryCache[a.id]) || a.summary;
+      return Boolean(s && s.trim().length >= 40);
     })
-    .map(a => ({
-      ...a,
-      title: cleanHeadline(a.title),
-      summary: aiSummaryCache[a.id],
-      isAiSummary: true,
-    }));
+    .map(a => {
+      const aiSummary = a.id && aiSummaryCache[a.id];
+      const bestSummary = aiSummary || a.summary || '';
+      return {
+        ...a,
+        title: cleanHeadline(a.title),
+        summary: bestSummary,
+        isAiSummary: Boolean(aiSummary && !aiSummary.startsWith('• ')),
+      };
+    });
 }
 
 // ----------------------------------------------------------------------------

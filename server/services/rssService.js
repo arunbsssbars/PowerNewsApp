@@ -20,12 +20,25 @@ const {
   runGeminiBatchSummarization,
   pruneAiSummaryCache,
 } = require('./geminiService');
+const {
+  scrapeFullArticle,
+  articleBodyCache,
+} = require('./scraperService');
 const { saveSummaryToFirestore } = require('./firestoreService');
 
 const parser = new Parser({
   timeout: 20000,
   headers: {
     'User-Agent': 'PowerNewsEngine/3.0 (India Power Sector Intelligence)'
+  },
+  customFields: {
+    item: [
+      ['content:encoded', 'contentEncoded'],
+      ['description', 'rawDescription'],
+      ['enclosure', 'enclosure'],
+      ['media:content', 'mediaContent'],
+      ['media:thumbnail', 'mediaThumbnail'],
+    ]
   }
 });
 
@@ -39,7 +52,7 @@ async function fetchRSSArticles() {
       const parsed = await parser.parseURL(feed.url);
       for (const item of parsed.items || []) {
         const rawTitle = cleanText(item.title);
-        const rawSummary = cleanText(item.contentSnippet || item.content || item.summary || '');
+        const rawSummary = cleanText(item.contentSnippet || item.content || item.summary || item.rawDescription || '');
         if (!rawTitle) continue;
 
         if (!isPowerSectorNews(rawTitle, rawSummary, feed.isStrictPowerFeed)) {
@@ -57,6 +70,35 @@ async function fetchRSSArticles() {
         const articleId = generateArticleId(item, rawTitle);
         const summary = aiSummaryCache[articleId] || extractCleanSnippet(rawTitle, rawSummary);
 
+        // Extract lead image if publisher provides enclosure or media tags
+        let rssImageUrl = null;
+        if (item.enclosure && item.enclosure.url && typeof item.enclosure.url === 'string') {
+          rssImageUrl = item.enclosure.url.trim();
+        } else if (item.mediaContent && item.mediaContent.$ && item.mediaContent.$.url) {
+          rssImageUrl = item.mediaContent.$.url.trim();
+        } else if (item.mediaThumbnail && item.mediaThumbnail.$ && item.mediaThumbnail.$.url) {
+          rssImageUrl = item.mediaThumbnail.$.url.trim();
+        }
+
+        // Extract authentic article body if publisher provides content:encoded in RSS
+        const encodedHtml = item.contentEncoded || item['content:encoded'] || '';
+        let embeddedFullText = null;
+        if (encodedHtml && encodedHtml.length > 200) {
+          const cleanBody = cleanText(encodedHtml);
+          if (cleanBody.length >= 150) {
+            embeddedFullText = cleanBody.slice(0, 4500);
+            if (item.link) {
+              const sentences = embeddedFullText.split(/(?<=[.!?])\s+/);
+              const snippetText = sentences.slice(0, 2).join(' ').trim();
+              articleBodyCache.set(item.link, {
+                summary: snippetText.length > 380 ? snippetText.slice(0, 375) + '...' : snippetText,
+                fullText: embeddedFullText,
+                imageUrl: rssImageUrl,
+              });
+            }
+          }
+        }
+
         const rawPubDate = item.pubDate || item.isoDate || item.date || item.published || item['dc:date'];
         results.push({
           id: articleId,
@@ -69,7 +111,9 @@ async function fetchRSSArticles() {
           player,
           city,
           state,
-          discom
+          discom,
+          fullText: embeddedFullText,
+          imageUrl: rssImageUrl || null,
         });
       }
     } catch (e) {

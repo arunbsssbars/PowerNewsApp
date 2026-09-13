@@ -5,7 +5,8 @@
   "main": "news-aggregator.js",
   "scripts": {
     "start": "node --optimize-for-size --max-old-space-size=384 news-aggregator.js",
-    "dev": "node --optimize-for-size --max-old-space-size=384 --watch news-aggregator.js",
+    "dev": "node --optimize-for-size --max-old-space-size=384 --watch-path=server --watch-path=news-aggregator.js news-aggregator.js",
+    "dev:offline": "node --optimize-for-size --max-old-space-size=384 --watch-path=server --watch-path=news-aggregator.js news-aggregator.js --offline",
     "check": "node --check server/index.js",
     "build:apk:obfuscated": "flutter build apk --release --obfuscate --split-debug-info=build/app/outputs/symbols",
     "build:appbundle:obfuscated": "flutter build appbundle --release --obfuscate --split-debug-info=build/app/outputs/symbols",
@@ -24,6 +25,7 @@
   "dependencies": {
     "@google-cloud/firestore": "^9.1.0",
     "@google/genai": "^2.21.0",
+    "@mozilla/readability": "^0.6.0",
     "cheerio": "^1.2.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
@@ -33,6 +35,7 @@
     "git": "^0.1.5",
     "google-news-url-decoder": "^1.2.2",
     "helmet": "^8.3.0",
+    "linkedom": "^0.18.13",
     "node-cron": "^4.6.0",
     "rss-parser": "^3.13.0"
   }

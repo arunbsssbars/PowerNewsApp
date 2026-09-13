@@ -43,7 +43,7 @@ class ApiService {
     final List<Future<String?>> probes = candidateHosts.map((host) async {
       try {
         final uri = Uri.parse('$host/api/health');
-        final timeoutSec = host == renderCloudHost ? 12 : 3;
+        final timeoutSec = host == renderCloudHost ? 30 : 3;
         final res = await http.get(uri, headers: _headers).timeout(Duration(seconds: timeoutSec));
         if (res.statusCode == 200) {
           try {
@@ -108,7 +108,7 @@ class ApiService {
     for (final host in hostsToTry) {
       try {
         final uri = Uri.parse('$host/api/news').replace(queryParameters: queryParams);
-        final timeoutSec = host == renderCloudHost ? 12 : 3;
+        final timeoutSec = host == renderCloudHost ? 30 : 3;
         final response = await http.get(uri, headers: _headers).timeout(Duration(seconds: timeoutSec));
 
         if (response.statusCode == 200) {

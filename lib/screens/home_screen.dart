@@ -398,22 +398,21 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         selectedIndex: provider.currentNavIndex,
         onDestinationSelected: (index) {
           final current = provider.currentNavIndex;
-          if (index != current) {
-            // Reset active filters in memory when switching tabs (0 network requests)
-            if (provider.isFiltered) {
-              provider.resetFiltersInMemory();
-            }
-          }
           if (index == 0) {
-            // Selecting or reclicking News Feed tab
+            // Selecting or reclicking News Feed tab:
+            // If any filter is currently applied, reset all filters completely and reload feed
             if (provider.isFiltered) {
-              provider.clearAllFiltersAndScrollTop();
+              provider.clearAllFiltersAndScrollTop(reloadFromNetwork: true);
             } else {
               provider.onScrollToTopRequested?.call();
+              if (provider.articles.isEmpty || provider.isNewsCacheExpired) {
+                provider.fetchNews();
+              }
             }
-            // If data is completely empty or cache expired after 10+ minutes, silently revalidate
-            if (provider.articles.isEmpty || provider.isNewsCacheExpired) {
-              provider.fetchNews();
+          } else if (index != current) {
+            // When leaving feed for another tab, clear transient in-memory filters
+            if (provider.isFiltered) {
+              provider.resetFiltersInMemory();
             }
           }
           provider.setNavIndex(index);

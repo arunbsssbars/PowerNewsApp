@@ -143,35 +143,62 @@ async function generateGeminiPowerSummary(articleId, title, snippet, category, p
         sources: sourcesList,
         sourceLinks: sourceLinksList,
         coverageCount: (fullArticle && typeof fullArticle.coverageCount === 'number') ? fullArticle.coverageCount : sourcesList.length,
+        imageUrl: (fullArticle && fullArticle.imageUrl) || null,
         isAiGenerated: true,
       });
     }
     return similarSummary;
   }
 
-  let articleContent = '';
+  let articleContent = (fullArticle && fullArticle.fullText) || '';
+  let articleImageUrl = (fullArticle && fullArticle.imageUrl) || null;
 
-  // Step 1: Scrape real publisher article body via Cheerio selectors
-  if (url && url.startsWith('http')) {
+  // Step 1: Scrape real publisher article body if not already present
+  if (!articleContent && url && url.startsWith('http')) {
     try {
       const scraped = await scrapeFullArticle(url);
-      if (scraped && scraped.fullText && scraped.fullText.length > 80) {
+      if (scraped && scraped.fullText && scraped.fullText.length >= 150) {
         articleContent = scraped.fullText;
+        if (fullArticle) {
+          fullArticle.fullText = articleContent;
+        }
         console.log(`[Scraper] Successfully extracted ${articleContent.length} chars from actual article: ${url.slice(0, 60)}...`);
+      }
+      if (scraped && scraped.imageUrl) {
+        articleImageUrl = scraped.imageUrl;
+        if (fullArticle && !fullArticle.imageUrl) {
+          fullArticle.imageUrl = scraped.imageUrl;
+        }
       }
     } catch (err) {
       console.warn(`[Scraper] Could not scrape ${url.slice(0, 50)}: ${err.message}`);
     }
   }
 
-  // Fall back to clean snippet if scraping didn't yield body
-  const contentToAnalyze = (articleContent.length > 80 ? articleContent.slice(0, 4000) : (snippet || cleanTitle)).trim();
+  // Strict No-Body Guard: If no authentic article content >= 120 chars exists, DO NOT call Gemini.
+  // Hallucinating 60-80 words of metrics from an empty body or headline is strictly prohibited.
+  if (!articleContent || articleContent.length < 120) {
+    return snippet && snippet.length > 25 ? snippet : cleanTitle;
+  }
 
-  // Step 2: Process with Gemini AI models
+  // Step 2: Single-pass structured classification & narrative synthesis via Gemini AI
   if (ai && Date.now() > geminiCoolingDownUntil) {
-    const prompt = `You are the Chief Editor and Senior Power Sector Intelligence Analyst for PowerNews India. Your audience includes leadership at CEA, CERC, State DISCOMs, Power PSUs (NTPC, PGCIL, SECI), Private Utilities (Tata Power, Adani, JSW), and Grid OEMs (Siemens, Hitachi Energy, BHEL, GE Vernova).
+    const prompt = `You are the Chief Editor and Senior Power Sector Intelligence Analyst for PowerNews India.
+Analyze the following article and determine whether it genuinely pertains to the Indian power, electricity, or renewable energy sector (generation, transmission, distribution, tariffs, renewables, SCADA, DISCOMs, or grid equipment).
 
-Read the ACTUAL ARTICLE CONTENT below and synthesize an ultra-crisp executive narrative story of strictly 60 to 80 words. Deliver the briefing as a single, fluid journalistic paragraph that reads like a high-impact opening dispatch from Bloomberg Energy or Reuters.
+Return a strictly valid JSON object with the following schema:
+{
+  "is_power_sector": boolean,
+  "primary_category": string ("generation", "transmission", "distribution", "renewables", "tariffs", "smart meters", "scada", or "policy"),
+  "operational_metrics": array of strings (quantitative facts extracted directly from text like MW, GW, Rs Crore, kV, Rs/kWh),
+  "city": string or null (specific Indian city, district, or project location if explicitly named, or null),
+  "executive_brief": string (strictly under 60 words — crisp 40 to 55 words single fluid narrative paragraph, dense with facts, zero fluff, no bullets)
+}
+
+STRICT CONSTRAINTS:
+1. The executive_brief MUST be strictly UNDER 60 words (target 40-55 words).
+2. Pack in quantitative data (MW, GW, kV, Rs Crore, tariffs) and strategic grid impact.
+3. Write a single fluid paragraph with no bullet points, no introductory pleasantries, and no trailing boilerplate.
 
 ARTICLE METADATA:
 Headline: ${cleanTitle}
@@ -180,61 +207,107 @@ Geography: ${state || 'National / Pan-India'} ${discom ? `(${discom})` : ''}
 
 ACTUAL ARTICLE CONTENT:
 """
-${contentToAnalyze}
-"""
-
-STRICT EDITORIAL GUIDELINES:
-- Output ONLY a single, continuous paragraph of narrative prose.
-- DO NOT use bullet points ("•", "-", "*"), numbers ("1.", "2."), bold section titles, preambles, or conversational filler.
-- Total word count MUST strictly be between 60 and 80 words. Be concise, punchy, and dense with facts.
-- Weave the complete briefing into 2 to 3 tightly linked sentences:
-    1. The Catalyst: The core event, contract award, regulatory order, or capacity commissioning.
-    2. Data & Operational Impact: Key numbers (MW/GW, ₹ Crore, kV, ₹/kWh) and significance for the power grid or sector.
-- Tone: Executive business-intelligence tone (active voice, dense with facts, authoritative).
-- Grounding: 100% strictly grounded in the provided article content. Never hallucinate, extrapolate, or invent numbers.`;
+${articleContent.slice(0, 4000)}
+"""`;
 
     const envModel = process.env.GEMINI_MODEL ? process.env.GEMINI_MODEL.trim() : null;
     const modelsToTry = envModel
-      ? [envModel, 'gemini-3.1-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.5-flash-lite', 'gemini-3.6-flash'].filter((v, i, a) => a.indexOf(v) === i)
-      : ['gemini-3.1-flash-lite', 'gemini-flash-lite-latest', 'gemini-3.5-flash-lite', 'gemini-3.6-flash', 'gemini-3.7-flash'];
+      ? [envModel, 'gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3-flash-preview', 'gemini-flash-latest'].filter((v, i, a) => a.indexOf(v) === i)
+      : ['gemini-3.5-flash', 'gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3-flash-preview', 'gemini-flash-latest'];
 
     for (const model of modelsToTry) {
       try {
         const response = await ai.models.generateContent({
           model,
           contents: prompt,
+          config: {
+            responseMimeType: 'application/json',
+          },
         });
 
-        let aiText = (response.text || '').trim();
-        aiText = cleanSummaryOutput(aiText);
-        if (aiText && aiText.length > 40) {
-          if (articleId) {
-            aiSummaryCache[articleId] = aiText;
-            saveSummaryToFirestore(articleId, aiText, {
-              title: cleanTitle,
-              category: categoriesList[0],
-              categories: categoriesList,
-              player: (fullArticle && fullArticle.player) || player || null,
-              city: (fullArticle && fullArticle.city) || null,
-              state: (fullArticle && fullArticle.state) || state || 'National / Pan-India',
-              discom: (fullArticle && fullArticle.discom) || discom || null,
-              url: (fullArticle && fullArticle.url) || url || '',
-              source: primarySource,
-              publishedAt: (fullArticle && fullArticle.publishedAt) || new Date().toISOString(),
-              fullText: (fullArticle && fullArticle.fullText) || (articleContent.length > 80 ? articleContent : null),
-              sources: sourcesList,
-              sourceLinks: sourceLinksList,
-              coverageCount: (fullArticle && typeof fullArticle.coverageCount === 'number') ? fullArticle.coverageCount : sourcesList.length,
-              isAiGenerated: true,
-            });
+        let parsed = null;
+        try {
+          parsed = JSON.parse(response.text);
+        } catch (_) {
+          const match = (response.text || '').match(/\{[\s\S]*\}/);
+          if (match) {
+            try { parsed = JSON.parse(match[0]); } catch (__) {}
           }
-          const wordCount = aiText.split(/\s+/).filter(Boolean).length;
-          console.log(`[Gemini AI] Synthesized narrative story (${wordCount} words) for "${cleanTitle.slice(0, 40)}" via ${model}`);
-          return aiText;
+        }
+
+        if (parsed) {
+          // If Gemini classified this article as NOT belonging to the power sector:
+          if (parsed.is_power_sector === false) {
+            console.log(`[Gemini Gate] Dropped non-power article: "${cleanTitle.slice(0, 50)}"`);
+            if (fullArticle) {
+              fullArticle.isRejected = true;
+            }
+            return null;
+          }
+
+          let aiText = cleanSummaryOutput(parsed.executive_brief || '');
+          if (aiText && aiText.length > 25) {
+            // Strictly enforce under 60 words
+            const words = aiText.split(/\s+/).filter(Boolean);
+            if (words.length > 58) {
+              const trimmedWords = words.slice(0, 55);
+              let trimmed = trimmedWords.join(' ');
+              const lastPeriod = trimmed.lastIndexOf('.');
+              if (lastPeriod > 80) {
+                aiText = trimmed.slice(0, lastPeriod + 1);
+              } else {
+                aiText = trimmed + '.';
+              }
+            }
+
+            if (articleId) {
+              aiSummaryCache[articleId] = aiText;
+              if (fullArticle) {
+                if (parsed.primary_category && !categoriesList.includes(parsed.primary_category.toLowerCase())) {
+                  categoriesList.unshift(parsed.primary_category.toLowerCase());
+                }
+                fullArticle.categories = categoriesList;
+                fullArticle.category = categoriesList[0];
+                if (Array.isArray(parsed.operational_metrics) && parsed.operational_metrics.length > 0) {
+                  fullArticle.operationalMetrics = parsed.operational_metrics;
+                }
+                if (parsed.city && typeof parsed.city === 'string' && parsed.city.length > 2 && parsed.city.toLowerCase() !== 'null') {
+                  fullArticle.city = parsed.city.trim();
+                }
+                if (articleImageUrl && !fullArticle.imageUrl) {
+                  fullArticle.imageUrl = articleImageUrl;
+                }
+                fullArticle.fullText = articleContent;
+              }
+
+              saveSummaryToFirestore(articleId, aiText, {
+                title: cleanTitle,
+                category: categoriesList[0],
+                categories: categoriesList,
+                player: (fullArticle && fullArticle.player) || player || null,
+                city: (fullArticle && fullArticle.city) || (parsed && parsed.city) || null,
+                state: (fullArticle && fullArticle.state) || state || 'National / Pan-India',
+                discom: (fullArticle && fullArticle.discom) || discom || null,
+                url: (fullArticle && fullArticle.url) || url || '',
+                source: primarySource,
+                publishedAt: (fullArticle && fullArticle.publishedAt) || new Date().toISOString(),
+                fullText: articleContent,
+                operationalMetrics: (fullArticle && fullArticle.operationalMetrics) || (parsed.operational_metrics || []),
+                sources: sourcesList,
+                sourceLinks: sourceLinksList,
+                coverageCount: (fullArticle && typeof fullArticle.coverageCount === 'number') ? fullArticle.coverageCount : sourcesList.length,
+                imageUrl: (fullArticle && fullArticle.imageUrl) || articleImageUrl || null,
+                isAiGenerated: true,
+              });
+            }
+            const wordCount = aiText.split(/\s+/).filter(Boolean).length;
+            console.log(`[Gemini AI] Synthesized narrative story (${wordCount} words) for "${cleanTitle.slice(0, 40)}" via ${model}`);
+            return aiText;
+          }
         }
       } catch (err) {
-        if (err.message && err.message.includes('429')) {
-          console.warn(`[Gemini AI] Quota limit on model ${model}. Trying fallback model...`);
+        if (err.message && (err.message.includes('429') || err.message.includes('503'))) {
+          console.warn(`[Gemini AI] Quota/high-demand on model ${model}. Trying fallback model...`);
           continue;
         } else {
           console.warn(`[Gemini AI] Error with model ${model} for "${cleanTitle.slice(0, 40)}":`, err.message);
@@ -333,6 +406,14 @@ async function runGeminiBatchSummarization(articles = []) {
             a.id, a.title, a.summary,
             (a.categories && a.categories[0]) || 'generation', a.player, a.state, a.discom, a.url, articles, a
           );
+          if (a.isRejected) {
+            const idx = articles.findIndex(art => art.id === a.id);
+            if (idx !== -1) {
+              articles.splice(idx, 1);
+            }
+            articleStore.removeArticle(a.id);
+            return;
+          }
           if (aiSum && aiSum.length > 30 && !aiSum.startsWith('• ')) {
             a.summary = aiSum;
             processed++;

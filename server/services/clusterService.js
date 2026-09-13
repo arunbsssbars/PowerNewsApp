@@ -74,6 +74,13 @@ function clusterArticles(articles, aiSummaryCache = {}) {
     master.sourceLinks = c.sourceLinks;
     master.coverageCount = c.articles.length;
 
+    if (!master.imageUrl) {
+      const mateWithImage = c.articles.find(a => a.imageUrl);
+      if (mateWithImage) {
+        master.imageUrl = mateWithImage.imageUrl;
+      }
+    }
+
     // Zero-Waste Gemini Optimization: If any source in this cluster already has a verified AI summary, share it across the whole cluster
     const mateWithSummary = c.articles.find(a => a.id && aiSummaryCache[a.id] && aiSummaryCache[a.id].length >= 80);
     if (mateWithSummary) {

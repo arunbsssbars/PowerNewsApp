@@ -37,4 +37,8 @@ module.exports = {
       lastRefreshedAt = new Date().toISOString();
     }
   },
+  removeArticle: (id) => {
+    if (!id) return;
+    cachedArticles = cachedArticles.filter(a => a.id !== id);
+  },
 };

@@ -191,5 +191,25 @@ void main() {
       expect(latest!.day, 3);
       expect(latest.month, 9);
     });
+
+    test('Persists and retrieves imageUrl correctly', () async {
+      final articleWithImage = NewsArticle(
+        id: 'img-test-1',
+        title: 'NTPC inaugurates 500MW solar park',
+        summary: 'Massive solar park commissioned with state of the art bifacial modules.',
+        url: 'http://test.com/ntpc-solar',
+        source: 'PowerLine',
+        publishedAt: DateTime.now(),
+        categories: ['renewables'],
+        imageUrl: 'https://powerline.net.in/wp-content/uploads/2026/09/ntpc_solar.jpg',
+        state: 'Gujarat',
+      );
+
+      await dbService.upsertArticles([articleWithImage]);
+      final retrieved = await dbService.getAllArticles();
+      expect(retrieved.length, 1);
+      expect(retrieved.first.id, 'img-test-1');
+      expect(retrieved.first.imageUrl, 'https://powerline.net.in/wp-content/uploads/2026/09/ntpc_solar.jpg');
+    });
   });
 }

@@ -60,7 +60,7 @@ class FormattedSummaryView extends StatelessWidget {
             (normSummary == normTitle ||
                 normSummary.startsWith(normTitle) && (normSummary.length - normTitle.length < 50) ||
                 normTitle.startsWith(normSummary))) ||
-        cleanSummary.length < 60;
+        cleanSummary.length < 45;
 
     final textColor = isDark ? const Color(0xFFE6EDF3) : const Color(0xFF1E293B);
     final highlightColor = isDark ? const Color(0xFF38BDF8) : const Color(0xFF1D4ED8);

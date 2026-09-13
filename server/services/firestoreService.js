@@ -4,8 +4,21 @@ const path = require('path');
 let db = null;
 let isInitialized = false;
 
+// In-memory cache & throttle state to eliminate redundant Cloud Firestore reads
+let cachedSummaryMap = {};
+let cachedArticles = [];
+let lastFullSyncTime = 0;
+let lastSyncTimestamp = null;
+const SYNC_COOLDOWN_MS = 30 * 60 * 1000; // 30-minute minimum throttle between full scans
+
 function initFirestore() {
   if (isInitialized) return db;
+
+  // 0. Support explicit offline mode for local Flutter development (0 cloud reads)
+  if (process.env.USE_CLOUD_FIRESTORE === 'false' || process.argv.includes('--offline')) {
+    console.log('[Firestore] Offline mode active (--offline / USE_CLOUD_FIRESTORE=false). Running in zero-cloud local mode.');
+    return null;
+  }
 
   try {
     const { initializeApp, cert, getApps } = require('firebase-admin/app');
@@ -59,22 +72,53 @@ function initFirestore() {
 }
 
 /**
- * Loads all AI summaries and full article documents from Cloud Firestore.
- * Returns an object that can be treated as both an id->summary map and provides .articles array.
+ * Loads AI summaries and full article documents from Cloud Firestore.
+ * Employs in-memory caching, a 30-minute cooldown, and timestamped delta sync
+ * to guarantee that development restarts and polling cycles do not exhaust quotas.
  */
-async function loadAllSummariesFromFirestore() {
+async function loadAllSummariesFromFirestore(forceRefresh = false) {
   const database = initFirestore();
   if (!database) {
-    const empty = {};
-    empty.summaryMap = {};
-    empty.articles = [];
-    return empty;
+    const res = { ...cachedSummaryMap, summaryMap: cachedSummaryMap, articles: cachedArticles };
+    return res;
+  }
+
+  const now = Date.now();
+
+  // Guard: If we synced recently, serve RAM cache (0 reads)
+  if (!forceRefresh && lastFullSyncTime > 0 && (now - lastFullSyncTime < SYNC_COOLDOWN_MS) && !lastSyncTimestamp) {
+    console.log(`[Firestore Cache] Serving ${cachedArticles.length} articles from RAM (cooldown active: ${Math.round((SYNC_COOLDOWN_MS - (now - lastFullSyncTime)) / 60000)}m remaining, saved 100% reads).`);
+    return { ...cachedSummaryMap, summaryMap: cachedSummaryMap, articles: cachedArticles };
   }
 
   try {
-    const snapshot = await database.collection('ai_summaries').get();
-    const summaryMap = {};
-    const articles = [];
+    let snapshot;
+    const isDelta = !!lastSyncTimestamp && !forceRefresh;
+
+    if (isDelta) {
+      // Incremental Delta Sync: only fetch documents updated since last successful sync
+      snapshot = await database.collection('ai_summaries')
+        .where('updatedAt', '>', lastSyncTimestamp)
+        .limit(50)
+        .get();
+      console.log(`[Firestore Delta] Checked for updates since ${lastSyncTimestamp} -> ${snapshot.size} new/modified documents.`);
+    } else {
+      // Initial Boot: Cap fetch to most recent 100 articles to eliminate runaway read costs
+      snapshot = await database.collection('ai_summaries')
+        .orderBy('updatedAt', 'desc')
+        .limit(100)
+        .get();
+      console.log(`[Firestore Initial] Loaded ${snapshot.size} latest documents from cloud.`);
+    }
+
+    if (snapshot.empty && cachedArticles.length > 0) {
+      lastFullSyncTime = now;
+      lastSyncTimestamp = new Date().toISOString();
+      return { ...cachedSummaryMap, summaryMap: cachedSummaryMap, articles: cachedArticles };
+    }
+
+    const freshArticles = [];
+    const freshMap = {};
 
     snapshot.forEach(doc => {
       const data = doc.data();
@@ -82,11 +126,11 @@ async function loadAllSummariesFromFirestore() {
         data &&
         data.summary &&
         typeof data.summary === 'string' &&
-        data.summary.length >= 75 &&
+        data.summary.length >= 50 &&
         !data.summary.startsWith('• ')
       ) {
         const id = doc.id;
-        summaryMap[id] = data.summary;
+        freshMap[id] = data.summary;
 
         // Reconstruct full article record with all fields
         const categories = Array.isArray(data.categories) && data.categories.length > 0
@@ -103,7 +147,7 @@ async function loadAllSummariesFromFirestore() {
           sourceLinks.push({ source: primarySource, url: data.url });
         }
 
-        articles.push({
+        freshArticles.push({
           id,
           title: data.title || '',
           summary: data.summary,
@@ -119,25 +163,42 @@ async function loadAllSummariesFromFirestore() {
           sources,
           sourceLinks,
           coverageCount: typeof data.coverageCount === 'number' ? data.coverageCount : (sources.length > 1 ? sources.length : 1),
+          imageUrl: data.imageUrl || null,
           isAiSummary: true,
           isAiGenerated: true,
         });
       }
     });
 
-    console.log(`[Firestore] Loaded ${articles.length} complete AI-summarized articles from Cloud Firestore.`);
+    // Merge fresh delta into in-memory cache
+    if (isDelta) {
+      const articleMap = new Map(cachedArticles.map(a => [a.id, a]));
+      freshArticles.forEach(a => articleMap.set(a.id, a));
+      cachedArticles = Array.from(articleMap.values());
+      Object.assign(cachedSummaryMap, freshMap);
+    } else {
+      cachedArticles = freshArticles;
+      cachedSummaryMap = freshMap;
+    }
 
-    // Dual-use return: works as map (res[id]) and provides { summaryMap, articles }
-    const result = { ...summaryMap };
-    result.summaryMap = summaryMap;
-    result.articles = articles;
+    lastFullSyncTime = now;
+    lastSyncTimestamp = new Date().toISOString();
+
+    const result = { ...cachedSummaryMap };
+    result.summaryMap = cachedSummaryMap;
+    result.articles = cachedArticles;
     return result;
   } catch (err) {
-    console.warn('[Firestore] Error reading articles from cloud:', err.message);
-    const empty = {};
-    empty.summaryMap = {};
-    empty.articles = [];
-    return empty;
+    lastFullSyncTime = now;
+    if (err.code === 8 || (err.message && err.message.includes('RESOURCE_EXHAUSTED'))) {
+      console.warn('[Firestore Notice] Daily free-tier quota (50k reads) exhausted for today. Automatically resets at midnight Pacific Time (approx 12:30 PM IST). Serving in-memory articles safely.');
+    } else {
+      console.warn('[Firestore] Sync warning (falling back to memory):', err.message);
+    }
+    const fallback = { ...cachedSummaryMap };
+    fallback.summaryMap = cachedSummaryMap;
+    fallback.articles = cachedArticles;
+    return fallback;
   }
 }
 
@@ -151,7 +212,7 @@ async function saveSummaryToFirestore(id, summary, metadata = {}) {
 
   const trimmed = summary.trim();
   // Reject any heuristic bullets, non-AI content, or stubs
-  if (!metadata.isAiGenerated || trimmed.startsWith('• ') || trimmed.length < 75) {
+  if (!metadata.isAiGenerated || trimmed.startsWith('• ') || trimmed.length < 50) {
     return;
   }
 
@@ -188,6 +249,7 @@ async function saveSummaryToFirestore(id, summary, metadata = {}) {
     sources,
     sourceLinks,
     coverageCount,
+    imageUrl: metadata.imageUrl || null,
     isAiGenerated: true,
     updatedAt: new Date().toISOString(),
   };

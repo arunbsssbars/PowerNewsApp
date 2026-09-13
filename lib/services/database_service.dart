@@ -12,7 +12,7 @@ class DatabaseService {
   DatabaseService._internal();
 
   Database? _db;
-  static const int _dbVersion = 1;
+  static const int _dbVersion = 2;
   static const String _dbName = 'powernews_offline.db';
 
   Future<Database> get database async {
@@ -64,6 +64,7 @@ class DatabaseService {
         sources_json TEXT NOT NULL DEFAULT '[]',
         source_links_json TEXT NOT NULL DEFAULT '[]',
         coverage_count INTEGER NOT NULL DEFAULT 1,
+        image_url TEXT,
         is_bookmarked INTEGER NOT NULL DEFAULT 0,
         cached_at TEXT NOT NULL,
         synced_at TEXT
@@ -100,7 +101,9 @@ class DatabaseService {
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    // Future schema migrations go here
+    if (oldVersion < 2) {
+      await db.execute('ALTER TABLE articles ADD COLUMN image_url TEXT');
+    }
     debugPrint('[DatabaseService] Upgraded database from v$oldVersion to v$newVersion');
   }
 
@@ -129,8 +132,8 @@ class DatabaseService {
         INSERT OR REPLACE INTO articles
           (id, title, summary, url, source, published_at, categories, player, city, state,
            discom, full_text, sources_json, source_links_json, coverage_count,
-           is_bookmarked, cached_at, synced_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+           image_url, is_bookmarked, cached_at, synced_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
           COALESCE((SELECT is_bookmarked FROM articles WHERE id = ?), 0),
           ?, ?)
       ''', [
@@ -141,6 +144,7 @@ class DatabaseService {
         json.encode(a.sources),
         json.encode(a.sourceLinks.map((l) => {'source': l['source'], 'url': l['url']}).toList()),
         a.coverageCount,
+        a.imageUrl,
         a.id, // for COALESCE subquery
         now, now,
       ]);
@@ -407,6 +411,7 @@ class DatabaseService {
       sources: srcList,
       sourceLinks: srcLinks,
       coverageCount: row['coverage_count'] as int? ?? 1,
+      imageUrl: row['image_url'] as String?,
       isAiGenerated: true,
     );
   }

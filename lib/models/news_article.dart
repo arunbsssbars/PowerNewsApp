@@ -18,6 +18,7 @@ class NewsArticle {
   final List<String> sources;
   final List<Map<String, String>> sourceLinks;
   final int coverageCount;
+  final String? imageUrl;
   final bool isAiGenerated;
 
   NewsArticle({
@@ -36,6 +37,7 @@ class NewsArticle {
     this.sources = const [],
     this.sourceLinks = const [],
     this.coverageCount = 1,
+    this.imageUrl,
     this.isAiGenerated = true,
   });
 
@@ -167,6 +169,7 @@ class NewsArticle {
       sources: srcList,
       sourceLinks: srcLinks,
       coverageCount: coverage,
+      imageUrl: json['imageUrl']?.toString() ?? json['image_url']?.toString(),
       isAiGenerated: json['isAiGenerated'] == true ||
           json['isAiSummary'] == true ||
           (json['isAiGenerated'] == null && json['isAiSummary'] == null),
@@ -190,6 +193,7 @@ class NewsArticle {
       'sources': sources,
       'sourceLinks': sourceLinks,
       'coverageCount': coverageCount,
+      'imageUrl': imageUrl,
       'isAiGenerated': isAiGenerated,
     };
   }

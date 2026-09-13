@@ -15,7 +15,8 @@ void main() {
         'player': 'POWERGRID',
         'city': 'Jaipur',
         'state': 'Rajasthan',
-        'discom': 'JVVNL'
+        'discom': 'JVVNL',
+        'imageUrl': 'https://powerline.net.in/wp-content/uploads/2026/09/line.jpg',
       };
 
       final article = NewsArticle.fromJson(json);
@@ -28,6 +29,7 @@ void main() {
       expect(article.city, 'Jaipur');
       expect(article.state, 'Rajasthan');
       expect(article.discom, 'JVVNL');
+      expect(article.imageUrl, 'https://powerline.net.in/wp-content/uploads/2026/09/line.jpg');
       expect(article.primaryCategory, 'transmission');
       expect(article.formattedDate, '01-Sep-26');
     });
@@ -63,6 +65,7 @@ void main() {
         city: 'New Delhi',
         state: 'Delhi',
         discom: null,
+        imageUrl: 'https://mercomindia.com/wp-content/uploads/ntpc.jpg',
       );
 
       final json = article.toJson();
@@ -74,6 +77,7 @@ void main() {
       expect(json['publishedAt'], '2026-09-02T10:30:00.000Z');
       expect(json['sources'], isEmpty);
       expect(json['coverageCount'], 1);
+      expect(json['imageUrl'], 'https://mercomindia.com/wp-content/uploads/ntpc.jpg');
     });
 
     test('formattedDateTime handles edge cases', () {
