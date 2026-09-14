@@ -383,7 +383,7 @@ ${articleContent.slice(0, 4000)}
 async function runGeminiBatchSummarization(articles = []) {
   if (!ai || !articles || articles.length === 0) return;
 
-  const unsummarized = articles.filter(a => !aiSummaryCache[a.id]);
+  const unsummarized = articles.filter(a => !aiSummaryCache[a.id]).slice(0, 10);
   if (unsummarized.length === 0) {
     console.log('[Gemini AI] All articles already summarized — nothing to do.');
     return;

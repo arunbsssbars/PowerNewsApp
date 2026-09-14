@@ -60,7 +60,13 @@ function requireApiKey(req, res, next) {
   next();
 }
 
-router.use(globalLimiter);
+// Apply Rate Limiter conditionally (allow health checks to pass infinitely for Render/UptimeRobot)
+router.use((req, res, next) => {
+  if (req.path === '/health' || req.path === '/apk' || req.path === '/memory') {
+    return next();
+  }
+  return globalLimiter(req, res, next);
+});
 router.use(requireApiKey);
 
 function getReadableRefreshTime(isoDateString) {
