@@ -127,7 +127,7 @@ async function fetchRSSArticles() {
           city,
           state,
           discom,
-          fullText: embeddedFullText,
+          // fullText omitted from RAM caching to prevent OOM limit breaches
           imageUrl: rssImageUrl || null,
         });
       }

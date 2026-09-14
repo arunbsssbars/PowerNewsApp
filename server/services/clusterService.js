@@ -38,7 +38,8 @@ function clusterArticles(articles, aiSummaryCache = {}) {
       const sameEntity = (primary.player && primary.player !== 'Power Sector Stakeholder' && primary.player === article.player) ||
         (primary.state && primary.state !== 'National / Pan-India' && primary.state === article.state);
 
-      if (sim >= 0.42 || (sameEntity && sim >= 0.25)) {
+      // Increased threshold to prevent unrelated articles from the same company from sharing a summary
+      if (sim >= 0.55 || (sameEntity && sim >= 0.45)) {
         matchedCluster = cluster;
         break;
       }

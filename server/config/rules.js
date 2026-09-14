@@ -21,7 +21,7 @@ const UTILITY_PLAYER_RULES = [
   { player: 'Apar Industries', keywords: ['apar industries', 'apar conductor', 'apar transformer oil', 'apar'] },
   { player: 'Polycab', keywords: ['polycab india', 'polycab wires', 'polycab cables', 'polycab'] },
   { player: 'Havells', keywords: ['havells india', 'havells switchgear', 'havells industrial', 'havells'] },
-  { player: 'Secure Meters', keywords: ['secure meters', 'secure smart meter', 'secure meter', 'secure'] },
+  { player: 'Secure Meters', keywords: ['secure meters', 'secure smart meter', 'secure meter'] },
   { player: 'Genus Power', keywords: ['genus power infrastructures', 'genus smart meter', 'genus power', 'genus'] },
   { player: 'HPL Electric', keywords: ['hpl electric & power', 'hpl electric', 'hpl meter', 'hpl switchgear'] },
   { player: 'SEL (Schweitzer)', keywords: ['schweitzer engineering laboratories', 'sel relay', 'sel-411l', 'sel-751'] },

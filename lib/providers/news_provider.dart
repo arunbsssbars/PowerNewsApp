@@ -1219,7 +1219,7 @@ class NewsProvider extends ChangeNotifier {
 
       if (cleanMore.isNotEmpty) {
         _articles.addAll(cleanMore);
-        _hasMore = cleanMore.length == _pageSize;
+        _hasMore = moreNews.length == _pageSize;
         await _cacheService.cacheArticles(cleanMore);
       } else {
         _hasMore = false;

@@ -86,7 +86,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   Future<void> _loadArticleContent() async {
     setState(() => _isLoadingContent = true);
     try {
-      final content = await _apiService.fetchArticleFullContent(widget.article.url);
+      final content = await _apiService.fetchArticleFullContent(widget.article.url, widget.article.id);
       if (mounted) {
         setState(() {
           if (content != null && content['fullText'] != null && content['fullText']!.trim().length > 60) {

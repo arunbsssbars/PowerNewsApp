@@ -162,7 +162,7 @@ async function loadAllSummariesFromFirestore(forceRefresh = false) {
           city: data.city || null,
           state: data.state || 'National / Pan-India',
           discom: data.discom || null,
-          fullText: data.fullText || null,
+          // fullText: data.fullText || null, // Omitted from RAM caching to prevent OOM
           sources,
           sourceLinks,
           coverageCount: typeof data.coverageCount === 'number' ? data.coverageCount : (sources.length > 1 ? sources.length : 1),
@@ -323,11 +323,60 @@ async function purgeOldestIfNearLimit(thresholdMb = 850, targetMb = 750) {
   }
 }
 
+/**
+ * Silently saves the (original text, native summary, gemini summary) to the training dataset.
+ */
+async function saveTrainingDataToFirestore(metadata) {
+  const database = initFirestore();
+  if (!database || !metadata.articleId || !metadata.originalText) return;
+
+  const docData = {
+    articleId: metadata.articleId,
+    title: metadata.title || '',
+    publisher: metadata.publisher || 'PowerNews',
+    originalText: metadata.originalText,
+    nativeSummary: metadata.nativeSummary || null,
+    geminiSummary: metadata.geminiSummary || null,
+    categories: metadata.categories || [],
+    isStrictB2B: metadata.isStrictB2B || false,
+    createdAt: new Date().toISOString(),
+  };
+
+  try {
+    // Non-blocking fire-and-forget save
+    database.collection('power60_training_data').doc(metadata.articleId).set(docData, { merge: true });
+  } catch (err) {
+    console.warn(`[Firestore] Failed to save training data for ${metadata.articleId}:`, err.message);
+  }
+}
+
+/**
+ * Fetches the heavy fullText of an article directly from Firestore.
+ * This ensures the Node process RAM footprint remains tiny while still allowing users to read the full article on-demand.
+ */
+async function getArticleContentById(id) {
+  const database = initFirestore();
+  if (!database || !id) return null;
+
+  try {
+    const docRef = database.collection('ai_summaries').doc(id);
+    const docSnap = await docRef.get();
+    
+    if (docSnap.exists) {
+      const data = docSnap.data();
+      return data.fullText || null;
+    }
+  } catch (err) {
+    console.warn(`[Firestore] Failed to fetch fullText for ${id}:`, err.message);
+  }
+  return null;
+}
+
 module.exports = {
   initFirestore,
   loadAllSummariesFromFirestore,
   saveSummaryToFirestore,
   purgeOldestIfNearLimit,
+  saveTrainingDataToFirestore,
+  getArticleContentById,
 };
-
-

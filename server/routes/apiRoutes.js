@@ -2,6 +2,7 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const articleStore = require('../services/articleStore');
+const { getArticleContentById } = require('../services/firestoreService');
 const {
   UTILITY_PLAYER_RULES,
   STATE_DISCOM_DIRECTORY,
@@ -240,18 +241,34 @@ router.get('/news', async (req, res) => {
 // Scraped Full Article Content (Reader Mode)
 // ----------------------------------------------------------------------------
 router.get('/article-content', async (req, res) => {
-  const { url } = req.query;
+  const { url, id } = req.query;
   if (!url || !url.startsWith('http')) {
     return res.status(400).json({ success: false, message: 'Valid url query parameter required' });
   }
 
+  // 1. Try fetching from Firestore first (Zero-scrape instant load)
+  if (id) {
+    const cachedContent = await getArticleContentById(id);
+    if (cachedContent && cachedContent.length > 200) {
+      return res.json({
+        success: true,
+        url,
+        summary: null,
+        fullText: cachedContent,
+        cached: true,
+      });
+    }
+  }
+
+  // 2. Fallback to live scraping
   const scraped = await scrapeFullArticle(url);
   if (scraped && scraped.fullText) {
     return res.json({
       success: true,
       url,
       summary: scraped.summary,
-      fullText: scraped.fullText
+      fullText: scraped.fullText,
+      cached: false,
     });
   }
 

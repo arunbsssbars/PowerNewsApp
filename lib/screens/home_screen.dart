@@ -73,7 +73,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     final int bookmarkCount = provider.bookmarks.length;
     final subheadings = [
       'Power Intelligence',
-      'Sector, Utilities & OEM Analytics',
+      'Sector & Utilities',
       '$bookmarkCount ${bookmarkCount == 1 ? 'Article' : 'Articles'} Saved',
     ];
 

@@ -220,12 +220,16 @@ class ApiService {
     return {};
   }
 
-  Future<Map<String, String>?> fetchArticleFullContent(String url) async {
+  Future<Map<String, String>?> fetchArticleFullContent(String url, [String? articleId]) async {
     if (url.isEmpty || !url.startsWith('http')) return null;
 
     // 1. Try local aggregator endpoint
     try {
-      final uri = Uri.parse('$_activeHost/api/article-content?url=${Uri.encodeComponent(url)}');
+      var uriStr = '$_activeHost/api/article-content?url=${Uri.encodeComponent(url)}';
+      if (articleId != null && articleId.isNotEmpty) {
+        uriStr += '&id=${Uri.encodeComponent(articleId)}';
+      }
+      final uri = Uri.parse(uriStr);
       final res = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 4));
       if (res.statusCode == 200) {
         final data = json.decode(utf8.decode(res.bodyBytes));

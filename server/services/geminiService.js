@@ -13,7 +13,9 @@ const { scrapeFullArticle } = require('./scraperService');
 const {
   loadAllSummariesFromFirestore,
   saveSummaryToFirestore,
+  saveTrainingDataToFirestore,
 } = require('./firestoreService');
+const { RSS_FEEDS } = require('../config/feeds');
 const articleStore = require('./articleStore');
 
 const apiKey = process.env.GEMINI_API_KEY;
@@ -295,6 +297,23 @@ ${articleContent.slice(0, 4000)}
                 coverageCount: (fullArticle && typeof fullArticle.coverageCount === 'number') ? fullArticle.coverageCount : sourcesList.length,
                 imageUrl: (fullArticle && fullArticle.imageUrl) || articleImageUrl || null,
                 isAiGenerated: true,
+              });
+
+              // [Power60 Flywheel] Log the original text + both summaries asynchronously
+              setImmediate(() => {
+                const feedDef = RSS_FEEDS.find(f => f.source === primarySource);
+                const isStrictB2B = feedDef ? feedDef.isStrictPowerFeed : false;
+                
+                saveTrainingDataToFirestore({
+                  articleId,
+                  title: cleanTitle,
+                  publisher: primarySource,
+                  originalText: articleContent,
+                  nativeSummary: (fullArticle && fullArticle.summary) || snippet || null,
+                  geminiSummary: aiText,
+                  categories: categoriesList,
+                  isStrictB2B,
+                });
               });
             }
             const wordCount = aiText.split(/\s+/).filter(Boolean).length;
