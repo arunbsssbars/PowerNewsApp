@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import '../providers/news_provider.dart';
 import 'feed_view.dart';
 import 'dashboard_view.dart';
-import 'regions_view.dart';
 import 'bookmarks_view.dart';
 import 'onboarding_screen.dart';
 import '../widgets/ask_gemini_sheet.dart';
@@ -62,24 +61,23 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       _visitedTabs.contains(1)
           ? DashboardView(onNavigateTab: (idx) => _onNavigateTab(idx))
           : const SizedBox.shrink(),
-      _visitedTabs.contains(2) ? const RegionsView() : const SizedBox.shrink(),
-      _visitedTabs.contains(3) ? const BookmarksView() : const SizedBox.shrink(),
+      _visitedTabs.contains(2) ? const BookmarksView() : const SizedBox.shrink(),
     ];
 
     final titles = [
       'PowerNews',
       'Dashboard',
-      'States & DISCOMs',
-      'Saved Articles',
+      'Saved Briefings',
     ];
 
     final int bookmarkCount = provider.bookmarks.length;
     final subheadings = [
       'Power Intelligence',
       'Sector, Utilities & OEM Analytics',
-      'Regional Grid & Utilities',
       '$bookmarkCount ${bookmarkCount == 1 ? 'Article' : 'Articles'} Saved',
     ];
+
+    final safeIndex = currentIndex.clamp(0, pages.length - 1);
 
     return Scaffold(
       appBar: AppBar(
@@ -123,7 +121,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    titles[provider.currentNavIndex],
+                    titles[safeIndex],
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       fontSize: 17,
@@ -138,7 +136,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                         width: 6,
                         height: 6,
                         decoration: BoxDecoration(
-                          color: provider.currentNavIndex == 0
+                          color: safeIndex == 0
                               ? const Color(0xFF10B981)
                               : (isDark ? const Color(0xFF38BDF8) : const Color(0xFF2563EB)),
                           shape: BoxShape.circle,
@@ -147,12 +145,12 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                       const SizedBox(width: 4),
                       Flexible(
                         child: Text(
-                          subheadings[provider.currentNavIndex],
+                          subheadings[safeIndex],
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontSize: 10.5,
                             fontWeight: FontWeight.w600,
-                            color: provider.currentNavIndex == 0
+                            color: safeIndex == 0
                                 ? const Color(0xFF10B981)
                                 : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569)),
                           ),
@@ -391,11 +389,11 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         ],
       ),
       body: IndexedStack(
-        index: provider.currentNavIndex,
+        index: safeIndex,
         children: pages,
       ),
       bottomNavigationBar: NavigationBar(
-        selectedIndex: provider.currentNavIndex,
+        selectedIndex: safeIndex,
         onDestinationSelected: (index) {
           final current = provider.currentNavIndex;
           if (index == 0) {
@@ -424,19 +422,14 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             label: 'News Feed',
           ),
           NavigationDestination(
-            icon: Icon(Icons.analytics_outlined),
-            selectedIcon: Icon(Icons.analytics_rounded, color: Color(0xFF2563EB)),
+            icon: Icon(Icons.space_dashboard_outlined),
+            selectedIcon: Icon(Icons.space_dashboard_rounded, color: Color(0xFF2563EB)),
             label: 'Dashboard',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.map_outlined),
-            selectedIcon: Icon(Icons.map_rounded, color: Color(0xFF2563EB)),
-            label: 'States',
           ),
           NavigationDestination(
             icon: Icon(Icons.bookmark_outline_rounded),
             selectedIcon: Icon(Icons.bookmark_rounded, color: Color(0xFF2563EB)),
-            label: 'Bookmarks',
+            label: 'Saved',
           ),
         ],
       ),

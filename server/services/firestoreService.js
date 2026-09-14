@@ -126,8 +126,11 @@ async function loadAllSummariesFromFirestore(forceRefresh = false) {
         data &&
         data.summary &&
         typeof data.summary === 'string' &&
-        data.summary.length >= 50 &&
-        !data.summary.startsWith('• ')
+        data.summary.length >= 75 &&
+        !data.summary.startsWith('• ') &&
+        !data.summary.startsWith('- ') &&
+        !data.summary.startsWith('* ') &&
+        data.summary.trim().toLowerCase() !== (data.title || '').trim().toLowerCase()
       ) {
         const id = doc.id;
         freshMap[id] = data.summary;
@@ -211,8 +214,15 @@ async function saveSummaryToFirestore(id, summary, metadata = {}) {
   if (!database || !id || !summary) return;
 
   const trimmed = summary.trim();
-  // Reject any heuristic bullets, non-AI content, or stubs
-  if (!metadata.isAiGenerated || trimmed.startsWith('• ') || trimmed.length < 50) {
+  // Reject any heuristic bullets, non-AI content, stubs, or title duplicates
+  if (
+    !metadata.isAiGenerated ||
+    trimmed.startsWith('• ') ||
+    trimmed.startsWith('- ') ||
+    trimmed.startsWith('* ') ||
+    trimmed.length < 75 ||
+    trimmed.toLowerCase() === (metadata.title || '').trim().toLowerCase()
+  ) {
     return;
   }
 

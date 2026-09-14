@@ -223,7 +223,8 @@ class NewsCard extends StatelessWidget {
                       child: Image.network(
                         article.imageUrl!,
                         fit: BoxFit.cover,
-                        cacheWidth: 640,
+                        cacheWidth: 1080,
+                        filterQuality: FilterQuality.medium,
                         loadingBuilder: (context, child, loadingProgress) {
                           if (loadingProgress == null) return child;
                           return Container(

@@ -2,11 +2,27 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/news_provider.dart';
 import '../widgets/ask_gemini_sheet.dart';
+import 'regions_view.dart';
 
-class DashboardView extends StatelessWidget {
+import 'package:flutter/services.dart';
+
+class DashboardView extends StatefulWidget {
   final Function(int tabIndex) onNavigateTab;
 
   const DashboardView({super.key, required this.onNavigateTab});
+
+  @override
+  State<DashboardView> createState() => _DashboardViewState();
+}
+
+class _DashboardViewState extends State<DashboardView> {
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -14,8 +30,7 @@ class DashboardView extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final screenWidth = MediaQuery.of(context).size.width;
 
-    // Sleek, compact aspect ratios to avoid extra vertical spacing
-    final double domainRatio = screenWidth < 380 ? 1.82 : 1.95;
+    // Sleek, compact aspect ratio for players
     final double playerRatio = screenWidth < 380 ? 2.15 : 2.35;
 
     // 1. Sector & Grid Domains
@@ -119,6 +134,60 @@ class DashboardView extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // 0. Clean Search Bar
+            Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF111827) : Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isDark ? const Color(0x14FFFFFF) : const Color(0x0F000000),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(isDark ? 0.25 : 0.04),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: TextField(
+                controller: _searchController,
+                textInputAction: TextInputAction.search,
+                onSubmitted: (query) {
+                  if (query.trim().isNotEmpty) {
+                    provider.setSearchQuery(query.trim());
+                    widget.onNavigateTab(0);
+                  }
+                },
+                decoration: InputDecoration(
+                  hintText: 'Search tariffs, 765kV orders, solar, SCADA...',
+                  hintStyle: TextStyle(
+                    fontSize: 13,
+                    color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                  ),
+                  prefixIcon: Icon(
+                    Icons.search_rounded,
+                    size: 19,
+                    color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF2563EB),
+                  ),
+                  suffixIcon: _searchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear_rounded, size: 16),
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() {});
+                          },
+                        )
+                      : null,
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
             // Top Overview Card (Compact & High-Contrast Typography)
             Container(
               width: double.infinity,
@@ -409,131 +478,100 @@ class DashboardView extends StatelessWidget {
               children: [
                 Icon(Icons.category_rounded, size: 15.5, color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF2563EB)),
                 const SizedBox(width: 6),
-                const Expanded(
-                  child: Text(
-                    'Power Sector Domains',
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800),
-                  ),
+                const Text(
+                  'Power Sector Domains',
+                  style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800),
                 ),
               ],
             ),
             const SizedBox(height: 8),
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: sectors.length,
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 8,
-                mainAxisSpacing: 8,
-                childAspectRatio: domainRatio,
-              ),
-              itemBuilder: (context, index) {
-                final s = sectors[index];
-                final color = s['color'] as Color;
-                final int count = (s['count'] as int?) ?? 0;
+            SizedBox(
+              height: 58,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                itemCount: sectors.length,
+                itemBuilder: (context, index) {
+                  final s = sectors[index];
+                  final color = s['color'] as Color;
+                  final int count = (s['count'] as int?) ?? 0;
+                  final double cardWidth = (screenWidth - 28) / 2.25;
 
-                return Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(10),
-                    onTap: () {
-                      if (count == 0) {
-                        ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            behavior: SnackBarBehavior.floating,
-                            duration: const Duration(seconds: 3),
-                            backgroundColor: isDark ? const Color(0xFF1E293B) : const Color(0xFF0F172A),
-                            content: Row(
-                              children: [
-                                const Icon(Icons.info_outline_rounded, color: Color(0xFF38BDF8), size: 18),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    'No recent news for ${s['title']} in the past 7 days.',
-                                    style: const TextStyle(fontSize: 12.5, color: Colors.white),
-                                  ),
-                                ),
-                              ],
+                  return Container(
+                    width: cardWidth,
+                    margin: const EdgeInsets.only(right: 8),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(10),
+                        onTap: () {
+                          provider.setCategory(s['category'] as String);
+                          widget.onNavigateTab(0);
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6.5),
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF161B22) : Colors.white,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: isDark ? const Color(0xFF263040) : const Color(0xFFE2E8F0),
+                              width: 1,
                             ),
-                            action: SnackBarAction(
-                              label: 'View Feed',
-                              textColor: const Color(0xFF38BDF8),
-                              onPressed: () {
-                                provider.setCategory(s['category'] as String);
-                                onNavigateTab(0);
-                              },
-                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
+                                blurRadius: 4,
+                                offset: const Offset(0, 1),
+                              ),
+                            ],
                           ),
-                        );
-                        return;
-                      }
-                      provider.setCategory(s['category'] as String);
-                      onNavigateTab(0);
-                    },
-                    child: Opacity(
-                      opacity: count == 0 ? 0.78 : 1.0,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7.5),
-                        decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF161B22) : Colors.white,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: isDark ? const Color(0xFF263040) : const Color(0xFFE2E8F0),
-                          ),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(4),
-                                  decoration: BoxDecoration(
-                                    color: color.withOpacity(isDark ? 0.22 : 0.12),
-                                    borderRadius: BorderRadius.circular(6),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(3.5),
+                                    decoration: BoxDecoration(
+                                      color: color.withOpacity(isDark ? 0.22 : 0.12),
+                                      borderRadius: BorderRadius.circular(5),
+                                    ),
+                                    child: Icon(s['icon'] as IconData, color: color, size: 13),
                                   ),
-                                  child: Icon(s['icon'] as IconData, color: color, size: 14),
-                                ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: count > 0
-                                        ? color.withOpacity(isDark ? 0.2 : 0.1)
-                                        : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9)),
-                                    borderRadius: BorderRadius.circular(5),
-                                    border: count > 0
-                                        ? null
-                                        : Border.all(
-                                            color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
-                                          ),
-                                  ),
-                                  child: Text(
-                                    '$count news',
-                                    style: TextStyle(
-                                      fontSize: 9.5,
-                                      fontWeight: FontWeight.bold,
-                                      color: count > 0
-                                          ? color
-                                          : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                                  const SizedBox(width: 5),
+                                  Expanded(
+                                    child: Text(
+                                      s['title'] as String,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800),
                                     ),
                                   ),
-                                ),
-                              ],
-                            ),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                s['title'] as String,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                    decoration: BoxDecoration(
+                                      color: count > 0
+                                          ? color.withOpacity(isDark ? 0.22 : 0.12)
+                                          : (isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9)),
+                                      borderRadius: BorderRadius.circular(4),
+                                      border: count > 0
+                                          ? null
+                                          : Border.all(
+                                              color: isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1),
+                                            ),
+                                    ),
+                                    child: Text(
+                                      '$count',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w800,
+                                        color: count > 0
+                                            ? color
+                                            : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                               Text(
                                 s['subtitle'] as String,
@@ -547,13 +585,12 @@ class DashboardView extends StatelessWidget {
                               ),
                             ],
                           ),
-                        ],
+                        ),
                       ),
                     ),
-                  ),
-                ),
-              );
-              },
+                  );
+                },
+              ),
             ),
 
             const SizedBox(height: 16),
@@ -617,7 +654,7 @@ class DashboardView extends StatelessWidget {
                               textColor: const Color(0xFF38BDF8),
                               onPressed: () {
                                 provider.setPlayerFilter(u['name'] as String);
-                                onNavigateTab(0);
+                                widget.onNavigateTab(0);
                               },
                             ),
                           ),
@@ -625,7 +662,7 @@ class DashboardView extends StatelessWidget {
                         return;
                       }
                       provider.setPlayerFilter(u['name'] as String);
-                      onNavigateTab(0);
+                      widget.onNavigateTab(0);
                     },
                     child: Opacity(
                       opacity: count == 0 ? 0.78 : 1.0,
@@ -766,7 +803,7 @@ class DashboardView extends StatelessWidget {
                               textColor: const Color(0xFF38BDF8),
                               onPressed: () {
                                 provider.setPlayerFilter(o['name'] as String);
-                                onNavigateTab(0);
+                                widget.onNavigateTab(0);
                               },
                             ),
                           ),
@@ -774,7 +811,7 @@ class DashboardView extends StatelessWidget {
                         return;
                       }
                       provider.setPlayerFilter(o['name'] as String);
-                      onNavigateTab(0);
+                      widget.onNavigateTab(0);
                     },
                     child: Opacity(
                       opacity: count == 0 ? 0.78 : 1.0,
@@ -854,10 +891,98 @@ class DashboardView extends StatelessWidget {
               },
             ),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
+
+            // Section 4: States & Regional DISCOMs Directory Card
+            InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: () {
+                HapticFeedback.selectionClick();
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => Scaffold(
+                      appBar: AppBar(
+                        title: const Text(
+                          'States & DISCOMs Directory',
+                          style: TextStyle(fontSize: 16.5, fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                      body: RegionsView(
+                        onNavigateTab: widget.onNavigateTab,
+                      ),
+                    ),
+                  ),
+                );
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF111827) : Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: isDark ? const Color(0x14FFFFFF) : const Color(0x0F000000),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(isDark ? 0.2 : 0.04),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0284C7).withOpacity(isDark ? 0.22 : 0.12),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(Icons.map_rounded, color: Color(0xFF0284C7), size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'States & DISCOMs Directory',
+                            style: TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w800,
+                              color: isDark ? Colors.white : const Color(0xFF0F172A),
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'PUVVNL, MVVNL, BSES, MSEDCL, BESCOM & 28+ State Grids',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      size: 13,
+                      color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 24),
           ],
         ),
       ),
     );
   }
+
+
 }

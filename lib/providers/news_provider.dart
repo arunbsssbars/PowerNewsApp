@@ -534,6 +534,10 @@ class NewsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void markArticleAsSeen(String articleId) {
+    _seenArticleIds.add(articleId);
+  }
+
   void setCategory(String category) {
     if (_selectedCategory == category) return;
     _selectedCategory = category;
@@ -986,7 +990,7 @@ class NewsProvider extends ChangeNotifier {
       }
       // Strict AI Summary Gate: ONLY genuine narrative AI summaries (non-bullet, >= 75 chars)
       final sum = a.summary.trim();
-      if (sum.length < 50 || sum.startsWith('• ') || sum.startsWith('- ') || sum.startsWith('* ')) {
+      if (sum.length < 75 || sum.startsWith('• ') || sum.startsWith('- ') || sum.startsWith('* ')) {
         return false;
       }
       if (sum.toLowerCase() == a.title.trim().toLowerCase()) {
@@ -1051,7 +1055,7 @@ class NewsProvider extends ChangeNotifier {
       // Filter out low-grade or non-AI stubs so feed contains 100% verified AI summaries
       final cleanNews = news.where((a) {
         final s = a.summary.trim();
-        return s.length >= 50 &&
+        return s.length >= 75 &&
             !s.startsWith('• ') &&
             !s.startsWith('- ') &&
             !s.startsWith('* ') &&

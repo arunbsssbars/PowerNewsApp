@@ -25,6 +25,7 @@ lerna-debug.log*
 
 # Runtime caches & data (persisted in Cloud Firestore)
 ai-summaries-cache.json
+server/.server_lifecycle.json
 server/data/*.json
 !server/data/.gitkeep
 

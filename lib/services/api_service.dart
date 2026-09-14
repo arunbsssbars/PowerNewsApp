@@ -18,13 +18,14 @@ class ApiService {
   static const String renderCloudHost = 'https://powernewsapp-backend.onrender.com';
 
   static const List<String> candidateHosts = [
+    'http://172.20.10.11:3000',
+    'http://127.0.0.1:3000',
     // 1. Production Render Cloud URL (Primary)
     renderCloudHost,
     // 2. Localhost fallback (only when user manually runs node server in terminal)
-    'http://127.0.0.1:3000',
     'http://localhost:3000',
     'http://10.0.2.2:3000',
-    'http://172.20.10.11:3000',
+   
     'http://100.98.130.99:3000',
   ];
 

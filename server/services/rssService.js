@@ -24,7 +24,6 @@ const {
   scrapeFullArticle,
   articleBodyCache,
 } = require('./scraperService');
-const { saveSummaryToFirestore } = require('./firestoreService');
 
 const parser = new Parser({
   timeout: 20000,
@@ -41,9 +40,6 @@ const parser = new Parser({
     ]
   }
 });
-
-// Self-retiring set to prevent duplicate Firestore writes across sync cycles
-const backfilledArticleIds = new Set();
 
 async function fetchRSSArticles() {
   const results = [];
@@ -78,6 +74,25 @@ async function fetchRSSArticles() {
           rssImageUrl = item.mediaContent.$.url.trim();
         } else if (item.mediaThumbnail && item.mediaThumbnail.$ && item.mediaThumbnail.$.url) {
           rssImageUrl = item.mediaThumbnail.$.url.trim();
+        }
+
+        // Reject low-res thumbnails so full-page scraper can fetch authentic HD og:image
+        if (rssImageUrl) {
+          const lower = rssImageUrl.toLowerCase();
+          if (
+            lower.includes('1x1') ||
+            lower.includes('pixel') ||
+            lower.includes('favicon') ||
+            lower.includes('100x100') ||
+            lower.includes('150x150') ||
+            lower.includes('80x80') ||
+            lower.includes('width=100') ||
+            lower.includes('width=150') ||
+            lower.includes('width-150') ||
+            lower.includes('_thumb')
+          ) {
+            rssImageUrl = null;
+          }
         }
 
         // Extract authentic article body if publisher provides content:encoded in RSS
@@ -186,6 +201,20 @@ async function searchLiveTopicRSS(queryText, { applyGemini = false } = {}) {
       }
     }
 
+    if (applyGemini) {
+      return results.filter(a => {
+        const s = (a.id && aiSummaryCache[a.id]) || a.summary;
+        return Boolean(
+          s &&
+          s.length >= 75 &&
+          !s.startsWith('• ') &&
+          !s.startsWith('- ') &&
+          !s.startsWith('* ') &&
+          s.toLowerCase() !== (a.title || '').trim().toLowerCase()
+        );
+      });
+    }
+
     return results;
   } catch (err) {
     console.warn(`[LiveSearch] Error querying topic "${queryText}":`, err.message);
@@ -201,7 +230,7 @@ async function prewarmTopicFeeds(articleStore) {
   console.log(`[PowerNews] Background pre-warming ${ALL_PREWARM_QUERIES.length} consolidated OEM/Utility/DISCOM/State topic feeds...`);
   const prewarmStart = Date.now();
   const prewarmArticles = [];
-  const BATCH_SIZE = 4;
+  const BATCH_SIZE = 2;
   let completed = 0;
 
   for (let i = 0; i < ALL_PREWARM_QUERIES.length; i += BATCH_SIZE) {
@@ -224,7 +253,7 @@ async function prewarmTopicFeeds(articleStore) {
     completed += wave.length;
     console.log(`[PowerNews] Pre-warm progress: ${completed}/${ALL_PREWARM_QUERIES.length} feeds fetched (${Math.round((Date.now() - prewarmStart) / 1000)}s elapsed, ${prewarmArticles.length} candidates)`);
     if (i + BATCH_SIZE < ALL_PREWARM_QUERIES.length) {
-      await new Promise(r => setTimeout(r, 250));
+      await new Promise(r => setTimeout(r, 600));
     }
   }
 
@@ -303,25 +332,6 @@ async function syncFeeds(currentCachedArticles = [], articleStore = null) {
 
       console.log(`[PowerNews] Indexed ${clusteredArticles.length} clean power sector articles (strictly within 7-day retention, newest first). AI Cache: ${Object.keys(aiSummaryCache).length} active summaries.`);
 
-      // One-time self-retiring backfill: upgrade legacy articles in Firestore once without repeat writes
-      const toBackfill = clusteredArticles.filter(a =>
-        a.id &&
-        !backfilledArticleIds.has(a.id) &&
-        aiSummaryCache[a.id] &&
-        aiSummaryCache[a.id].length >= 75 &&
-        !aiSummaryCache[a.id].startsWith('• ')
-      );
-      if (toBackfill.length > 0) {
-        setImmediate(async () => {
-          for (const a of toBackfill) {
-            backfilledArticleIds.add(a.id);
-            try {
-              await saveSummaryToFirestore(a.id, aiSummaryCache[a.id], a);
-            } catch (_) {}
-          }
-          console.log(`[Firestore Migration] Backfilled ${toBackfill.length} legacy articles with full 14 fields.`);
-        });
-      }
 
       if (ai) {
         const unsumCount = clusteredArticles.filter(a => a.id && !aiSummaryCache[a.id]).length;

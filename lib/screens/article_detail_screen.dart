@@ -4,10 +4,8 @@ import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../models/news_article.dart';
 import '../providers/news_provider.dart';
-import '../widgets/formatted_summary_view.dart';
-import 'reader_screen.dart';
-
-import 'package:shared_preferences/shared_preferences.dart';
+import '../theme/app_theme.dart';
+import '../widgets/executive_card_view.dart';
 
 class ArticleDetailScreen extends StatefulWidget {
   final List<NewsArticle> articles;
@@ -24,1109 +22,185 @@ class ArticleDetailScreen extends StatefulWidget {
 }
 
 class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
-  late PageController _pageController;
+  late final PageController _pageController;
   late int _currentIndex;
-  double _summaryFontSize = 15.5; // Modern crisp zero-scroll size
-  String _summaryFontFamily = 'Default'; // Modern Sans
-  double _summaryLineHeight = 1.50; // Standard
-  final Set<String> _loadingAiArticleIds = {};
-  final Map<String, String> _aiSummaries = {};
+  double _currentPage = 0.0;
 
   @override
   void initState() {
     super.initState();
-    _currentIndex = widget.initialIndex;
-    _pageController = PageController(initialPage: widget.initialIndex);
-    _loadTypographyPrefs();
+    _currentIndex = widget.initialIndex.clamp(0, widget.articles.isEmpty ? 0 : widget.articles.length - 1);
+    _currentPage = _currentIndex.toDouble();
+    _pageController = PageController(initialPage: _currentIndex);
+    _pageController.addListener(_onPageScroll);
+
+    // Pre-mark current article as seen/read in provider
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (widget.articles.isNotEmpty) {
-        _fetchAiSummaryIfNeeded(widget.articles[_currentIndex]);
-        if (_currentIndex + 1 < widget.articles.length) {
-          _fetchAiSummaryIfNeeded(widget.articles[_currentIndex + 1]);
-        }
-        if (_currentIndex + 2 < widget.articles.length) {
-          _fetchAiSummaryIfNeeded(widget.articles[_currentIndex + 2]);
-        }
+      if (widget.articles.isNotEmpty && mounted) {
+        final provider = context.read<NewsProvider>();
+        provider.markArticleAsSeen(widget.articles[_currentIndex].id);
+        provider.markArticleAsRead(widget.articles[_currentIndex].id);
       }
     });
   }
 
-  Future<void> _loadTypographyPrefs() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
+  void _onPageScroll() {
+    if (_pageController.hasClients) {
       setState(() {
-        _summaryFontSize = prefs.getDouble('summary_font_size') ?? 16.5;
-        _summaryFontFamily = prefs.getString('summary_font_family') ?? 'Default';
-        _summaryLineHeight = prefs.getDouble('summary_line_height') ?? 1.55;
+        _currentPage = _pageController.page ?? _currentIndex.toDouble();
       });
-    } catch (_) {}
-  }
-
-  Future<void> _saveTypographyPrefs() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setDouble('summary_font_size', _summaryFontSize);
-      await prefs.setString('summary_font_family', _summaryFontFamily);
-      await prefs.setDouble('summary_line_height', _summaryLineHeight);
-    } catch (_) {}
-  }
-
-  void _showTypographyBottomSheet(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: isDark ? const Color(0xFF111827) : Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            return Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: Colors.grey.withOpacity(0.4),
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Reading Typography & Style',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                          color: isDark ? Colors.white : const Color(0xFF0F172A),
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.close_rounded, size: 20),
-                        onPressed: () => Navigator.pop(ctx),
-                      ),
-                    ],
-                  ),
-                  const Divider(),
-                  const SizedBox(height: 8),
-
-                  // 1. Font Size Selector
-                  Text(
-                    'FONT SIZE: ${_summaryFontSize.toStringAsFixed(1)} pt',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.5,
-                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      _buildSizeOption(13.0, 'Small', setModalState),
-                      const SizedBox(width: 8),
-                      _buildSizeOption(14.5, 'Normal', setModalState),
-                      const SizedBox(width: 8),
-                      _buildSizeOption(16.5, 'Large', setModalState),
-                      const SizedBox(width: 8),
-                      _buildSizeOption(18.5, 'X-Large', setModalState),
-                    ],
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // 2. Font Family Selector
-                  Text(
-                    'TYPEFACE STYLE',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.5,
-                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      _buildFamilyOption('Default', 'Modern Sans', setModalState),
-                      const SizedBox(width: 8),
-                      _buildFamilyOption('Serif', 'Editorial Serif', setModalState),
-                      const SizedBox(width: 8),
-                      _buildFamilyOption('Mono', 'Tech Mono', setModalState),
-                    ],
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // 3. Line Spacing Selector
-                  Text(
-                    'LINE SPACING',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.5,
-                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      _buildSpacingOption(1.35, 'Compact', setModalState),
-                      const SizedBox(width: 8),
-                      _buildSpacingOption(1.55, 'Standard', setModalState),
-                      const SizedBox(width: 8),
-                      _buildSpacingOption(1.85, 'Relaxed', setModalState),
-                    ],
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildSizeOption(double size, String label, StateSetter setModalState) {
-    final isSelected = (_summaryFontSize - size).abs() < 0.2;
-    return Expanded(
-      child: InkWell(
-        borderRadius: BorderRadius.circular(8),
-        onTap: () {
-          setState(() => _summaryFontSize = size);
-          setModalState(() {});
-          _saveTypographyPrefs();
-        },
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: isSelected ? const Color(0xFF2563EB) : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: isSelected ? const Color(0xFF2563EB) : Colors.grey.withOpacity(0.3),
-            ),
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: isSelected ? Colors.white : null,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFamilyOption(String familyKey, String label, StateSetter setModalState) {
-    final isSelected = _summaryFontFamily == familyKey;
-    return Expanded(
-      child: InkWell(
-        borderRadius: BorderRadius.circular(8),
-        onTap: () {
-          setState(() => _summaryFontFamily = familyKey);
-          setModalState(() {});
-          _saveTypographyPrefs();
-        },
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: isSelected ? const Color(0xFF2563EB) : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: isSelected ? const Color(0xFF2563EB) : Colors.grey.withOpacity(0.3),
-            ),
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 11.5,
-              fontWeight: FontWeight.w700,
-              fontFamily: familyKey == 'Serif' ? 'serif' : (familyKey == 'Mono' ? 'monospace' : null),
-              color: isSelected ? Colors.white : null,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSpacingOption(double spacing, String label, StateSetter setModalState) {
-    final isSelected = (_summaryLineHeight - spacing).abs() < 0.05;
-    return Expanded(
-      child: InkWell(
-        borderRadius: BorderRadius.circular(8),
-        onTap: () {
-          setState(() => _summaryLineHeight = spacing);
-          setModalState(() {});
-          _saveTypographyPrefs();
-        },
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: isSelected ? const Color(0xFF2563EB) : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: isSelected ? const Color(0xFF2563EB) : Colors.grey.withOpacity(0.3),
-            ),
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: isSelected ? Colors.white : null,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _fetchAiSummaryIfNeeded(NewsArticle article) async {
-    final cached = _aiSummaries[article.id];
-    if (cached != null && (cached.length >= 50 || cached.contains('•'))) return;
-
-    final existingSummary = article.summary.trim();
-    final normTitle = article.title.trim().toLowerCase();
-    if (existingSummary.length >= 50 &&
-        existingSummary.toLowerCase() != normTitle &&
-        !existingSummary.toLowerCase().startsWith(normTitle)) {
-      _aiSummaries[article.id] = existingSummary;
-      return;
-    }
-
-    if (mounted) {
-      setState(() => _loadingAiArticleIds.add(article.id));
-    }
-    try {
-      final aiService = context.read<NewsProvider>().apiService;
-      final aiSummary = await aiService.fetchArticleAiSummary(
-        id: article.id,
-        title: article.title,
-        snippet: article.summary,
-        category: article.primaryCategory,
-        player: article.player,
-        state: article.state,
-        discom: article.discom,
-        url: article.url,
-      );
-
-      if (aiSummary != null && aiSummary.trim().isNotEmpty && mounted) {
-        final cleanAi = aiSummary.trim();
-        setState(() {
-          _aiSummaries[article.id] = cleanAi;
-          final idx = widget.articles.indexWhere((a) => a.id == article.id);
-          if (idx != -1) {
-            final updated = NewsArticle(
-              id: article.id,
-              title: article.title,
-              summary: cleanAi,
-              url: article.url,
-              source: article.source,
-              publishedAt: article.publishedAt,
-              categories: article.categories,
-              player: article.player,
-              city: article.city,
-              state: article.state,
-              discom: article.discom,
-              fullText: article.fullText,
-            );
-            widget.articles[idx] = updated;
-          }
-        });
-
-        // Persist summary to NewsProvider and SQLite so it's permanently available offline
-        try {
-          if (mounted) {
-            context.read<NewsProvider>().updateArticleSummary(article.id, cleanAi);
-          }
-        } catch (_) {}
-      }
-    } catch (_) {
-    } finally {
-      if (mounted) {
-        setState(() => _loadingAiArticleIds.remove(article.id));
-      }
     }
   }
 
   @override
   void dispose() {
+    _pageController.removeListener(_onPageScroll);
     _pageController.dispose();
     super.dispose();
   }
 
-  void _openMobileSourceWebView(BuildContext context, NewsArticle article) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ReaderScreen(article: article),
-      ),
-    );
-  }
-
-  void _shareArticle(BuildContext context, NewsArticle article) {
-    try {
-      final shareText = '''⚡ *${article.title}*
-
-📅 Published: ${article.formattedDateTime}
-📰 Source: ${article.source}
-
-📋 *Read full 50-word executive summary, SCADA updates & grid intelligence on the PowerNews App:*
-📲 Download PowerNews App: https://github.com/powernews/app/releases''';
-      Share.share(shareText, subject: article.title);
-    } catch (_) {
-      Clipboard.setData(ClipboardData(text: '${article.title}\n\n${article.summary}'));
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          duration: Duration(seconds: 2),
-          content: Text('📋 Headline copied to clipboard!'),
-        ),
-      );
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final provider = context.watch<NewsProvider>();
+
     if (widget.articles.isEmpty) {
       return Scaffold(
-        appBar: AppBar(title: const Text('PowerNews Story')),
-        body: const Center(child: Text('No article data found')),
+        backgroundColor: isDark ? AppTheme.darkBg : AppTheme.lightBg,
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_rounded),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          title: const Text('Executive Briefing'),
+        ),
+        body: const Center(
+          child: Text('No briefings available.'),
+        ),
       );
     }
 
     final currentArticle = widget.articles[_currentIndex];
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final provider = context.watch<NewsProvider>();
+    final isBookmarked = provider.isBookmarked(currentArticle.id);
 
     return Scaffold(
+      backgroundColor: isDark ? AppTheme.darkBg : AppTheme.lightBg,
       appBar: AppBar(
+        backgroundColor: isDark ? AppTheme.darkSurface : AppTheme.lightSurface,
+        elevation: 0,
+        scrolledUnderElevation: 0,
         titleSpacing: 0,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
+        leading: IconButton(
+          icon: Icon(
+            Icons.arrow_back_rounded,
+            color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
+            size: 20,
+          ),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: Row(
           children: [
-            const Text(
-              'Power Sector Intelligence',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
-            ),
             Text(
-              '${_currentIndex + 1} of ${widget.articles.length} updates • Swipe left/right',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+              'Executive Briefing',
               style: TextStyle(
-                fontSize: 10.5,
-                fontWeight: FontWeight.w500,
-                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+                color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
+                letterSpacing: -0.2,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0),
+                ),
+              ),
+              child: Text(
+                '${_currentIndex + 1} / ${widget.articles.length}',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
+                ),
               ),
             ),
           ],
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.format_size_rounded, size: 20),
-            tooltip: 'Customize Font & Style',
-            visualDensity: VisualDensity.compact,
-            padding: const EdgeInsets.all(6),
-            constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
-            onPressed: () => _showTypographyBottomSheet(context),
+            icon: Icon(
+              isBookmarked ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
+              color: isBookmarked
+                  ? const Color(0xFF2563EB)
+                  : (isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary),
+              size: 20,
+            ),
+            tooltip: isBookmarked ? 'Remove Bookmark' : 'Bookmark Briefing',
+            onPressed: () {
+              HapticFeedback.selectionClick();
+              provider.toggleBookmark(currentArticle);
+            },
           ),
           IconButton(
-            icon: const Icon(Icons.share_outlined, size: 19),
+            icon: Icon(
+              Icons.share_rounded,
+              color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
+              size: 19,
+            ),
             tooltip: 'Share Briefing',
-            visualDensity: VisualDensity.compact,
-            padding: const EdgeInsets.all(6),
-            constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
-            onPressed: () => _shareArticle(context, currentArticle),
-          ),
-          Consumer<NewsProvider>(
-            builder: (context, prov, _) {
-              final isBookmarked = prov.isBookmarked(currentArticle.id);
-              return IconButton(
-                icon: Icon(
-                  isBookmarked ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
-                  color: isBookmarked ? const Color(0xFFD97706) : null,
-                  size: 21,
-                ),
-                tooltip: isBookmarked ? 'Remove Bookmark' : 'Bookmark Article',
-                visualDensity: VisualDensity.compact,
-                padding: const EdgeInsets.all(6),
-                constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
-                onPressed: () {
-                  prov.toggleBookmark(currentArticle);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      duration: const Duration(milliseconds: 900),
-                      content: Text(isBookmarked ? 'Removed bookmark' : 'Article bookmarked offline'),
-                    ),
-                  );
-                },
+            onPressed: () {
+              HapticFeedback.selectionClick();
+              Share.share(
+                '⚡ ${currentArticle.title}\n\n${currentArticle.summary}\n\nVia PowerNews: ${currentArticle.url}',
+                subject: currentArticle.title,
               );
             },
           ),
           const SizedBox(width: 4),
         ],
       ),
-      body: Consumer<NewsProvider>(
-        builder: (context, prov, child) {
-          final isMainFeed = widget.articles.isNotEmpty && prov.articles.isNotEmpty && widget.articles.first.id == prov.articles.first.id;
-          final displayArticles = isMainFeed ? prov.articles : widget.articles;
+      body: PageView.builder(
+        controller: _pageController,
+        scrollDirection: Axis.vertical,
+        physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+        itemCount: widget.articles.length,
+        onPageChanged: (index) {
+          HapticFeedback.selectionClick();
+          setState(() {
+            _currentIndex = index;
+          });
+          provider.markArticleAsSeen(widget.articles[index].id);
+          provider.markArticleAsRead(widget.articles[index].id);
+        },
+        itemBuilder: (context, index) {
+          final article = widget.articles[index];
+          final double pageOffset = _currentPage - index;
 
-          return PageView.builder(
-            controller: _pageController,
-            physics: const BouncingScrollPhysics(
-              parent: AlwaysScrollableScrollPhysics(),
-            ),
-            itemCount: displayArticles.length,
-            onPageChanged: (index) {
-              setState(() {
-                _currentIndex = index;
-              });
-              _fetchAiSummaryIfNeeded(displayArticles[index]);
-              if (index + 1 < displayArticles.length) {
-                _fetchAiSummaryIfNeeded(displayArticles[index + 1]);
-              }
-              if (index + 2 < displayArticles.length) {
-                _fetchAiSummaryIfNeeded(displayArticles[index + 2]);
-              }
-              if (isMainFeed && index >= displayArticles.length - 3) {
-                prov.fetchMoreNews();
-              }
-            },
-            itemBuilder: (context, index) {
-              final article = displayArticles[index];
-              final catColor = article.getCategoryColor(context);
+          // Physics-based interpolation: Scale (0.92 to 1.0), Opacity (0.70 to 1.0)
+          final double scale = (1.0 - (pageOffset.abs() * 0.08)).clamp(0.92, 1.0);
+          final double opacity = (1.0 - (pageOffset.abs() * 0.30)).clamp(0.70, 1.0);
+          final double translationY = pageOffset * 10.0;
 
-              return AnimatedBuilder(
-                animation: _pageController,
-                builder: (context, child) {
-                  double pageOffset = 0.0;
-                  if (_pageController.position.haveDimensions && _pageController.page != null) {
-                    pageOffset = (_pageController.page! - index);
-                  } else {
-                    pageOffset = (_currentIndex - index).toDouble();
-                  }
-
-                  // Tactile swiping motion: smooth scale and gentle opacity drop
-                  final clampedOffset = pageOffset.clamp(-1.0, 1.0);
-                  final scale = (1.0 - (clampedOffset.abs() * 0.06)).clamp(0.92, 1.0);
-                  final opacity = (1.0 - (clampedOffset.abs() * 0.35)).clamp(0.65, 1.0);
-
-                  return Transform.scale(
-                    scale: scale,
-                    alignment: Alignment.center,
-                    child: Opacity(
-                      opacity: opacity,
-                      child: child,
-                    ),
-                  );
-                },
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    return Padding(
-                      padding: const EdgeInsets.fromLTRB(14, 6, 14, 8),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          // Top Meta Badge Strip (Category + Player + Region)
-                          SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            physics: const BouncingScrollPhysics(),
-                            child: Row(
-                              children: [
-                                // Category Pill
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
-                                  decoration: BoxDecoration(
-                                    color: catColor.withOpacity(isDark ? 0.22 : 0.1),
-                                    borderRadius: BorderRadius.circular(6),
-                                    border: Border.all(
-                                      color: catColor.withOpacity(isDark ? 0.45 : 0.3),
-                                      width: 1,
-                                    ),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(article.getCategoryIcon(), size: 11.5, color: catColor),
-                                      const SizedBox(width: 3.5),
-                                      Text(
-                                        article.primaryCategory.toUpperCase(),
-                                        style: TextStyle(
-                                          color: catColor,
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w800,
-                                          letterSpacing: 0.3,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-
-                                // Utility / OEM Badge
-                                if (article.player != null) ...[
-                                  const SizedBox(width: 5),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3.5),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFD97706).withOpacity(isDark ? 0.22 : 0.1),
-                                      borderRadius: BorderRadius.circular(6),
-                                      border: Border.all(color: const Color(0xFFD97706).withOpacity(0.35)),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        const Icon(Icons.business_rounded, size: 11.5, color: Color(0xFFD97706)),
-                                        const SizedBox(width: 3.5),
-                                        Text(
-                                          article.player!,
-                                          style: const TextStyle(
-                                            fontSize: 10.5,
-                                            fontWeight: FontWeight.w700,
-                                            color: Color(0xFFD97706),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-
-                                // City Badge
-                                if (article.city != null) ...[
-                                  const SizedBox(width: 5),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3.5),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF2563EB).withOpacity(isDark ? 0.22 : 0.1),
-                                      borderRadius: BorderRadius.circular(6),
-                                      border: Border.all(color: const Color(0xFF2563EB).withOpacity(0.3)),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        const Icon(Icons.location_city_rounded, size: 11.5, color: Color(0xFF2563EB)),
-                                        const SizedBox(width: 3.5),
-                                        Text(
-                                          article.city!,
-                                          style: const TextStyle(
-                                            fontSize: 10.5,
-                                            fontWeight: FontWeight.w700,
-                                            color: Color(0xFF2563EB),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-
-                                const SizedBox(width: 5),
-
-                                // State / Pan-India Badge
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3.5),
-                                  decoration: BoxDecoration(
-                                    color: isDark ? const Color(0xFF151D2E) : const Color(0xFFF1F5F9),
-                                    borderRadius: BorderRadius.circular(6),
-                                    border: Border.all(
-                                      color: isDark ? const Color(0xFF2E3D59) : const Color(0xFFE2E8F0),
-                                    ),
-                                  ),
-                                  child: Text(
-                                    article.discom != null ? '${article.state} (${article.discom})' : article.state,
-                                    style: TextStyle(
-                                      fontSize: 10.5,
-                                      fontWeight: FontWeight.w600,
-                                      color: isDark ? const Color(0xFFCBD5E1) : const Color(0xFF475569),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-
-                          const SizedBox(height: 6),
-
-                          // Main Headline of Summary Screen (Crisp & bold, maxLines 2)
-                          Text(
-                            article.title,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 15.5,
-                              height: 1.25,
-                              fontWeight: FontWeight.w800,
-                              color: isDark ? const Color(0xFFF8FAFC) : const Color(0xFF0F172A),
-                              letterSpacing: -0.2,
-                            ),
-                          ),
-
-                          // Lead Article Image (Publisher CDN / Zero Storage Cost, Compact Responsive Height)
-                          if (article.imageUrl != null && article.imageUrl!.startsWith('http')) ...[
-                            const SizedBox(height: 6),
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(10),
-                              child: SizedBox(
-                                height: (constraints.maxHeight * 0.21).clamp(100.0, 150.0),
-                                width: double.infinity,
-                                child: Image.network(
-                                  article.imageUrl!,
-                                  fit: BoxFit.cover,
-                                  cacheWidth: 800,
-                                  loadingBuilder: (context, child, loadingProgress) {
-                                    if (loadingProgress == null) return child;
-                                    return Container(
-                                      color: isDark ? const Color(0xFF1E2633) : const Color(0xFFF1F5F9),
-                                      child: const Center(
-                                        child: SizedBox(
-                                          width: 22,
-                                          height: 22,
-                                          child: CircularProgressIndicator(strokeWidth: 2),
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                  errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                                ),
-                              ),
-                            ),
-                          ],
-
-                          const SizedBox(height: 6),
-
-                          // Executive Dispatch Intelligence Card (Consumes available vertical space with zero scrolling)
-                          Expanded(
-                            child: Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                              decoration: BoxDecoration(
-                                color: isDark ? const Color(0xFF161B22) : Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: isDark ? const Color(0xFF263040) : const Color(0xFFE2E8F0),
-                                  width: 1,
-                                ),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  // Card Header: Summary & Highlights Pill + Date
-                                  Row(
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                                        decoration: BoxDecoration(
-                                          color: (isDark ? const Color(0xFF38BDF8) : const Color(0xFF2563EB)).withOpacity(0.12),
-                                          borderRadius: BorderRadius.circular(5),
-                                        ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Icon(
-                                              Icons.insights_rounded,
-                                              size: 11,
-                                              color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF2563EB),
-                                            ),
-                                            const SizedBox(width: 4),
-                                            Text(
-                                              'SUMMARY & HIGHLIGHTS',
-                                              style: TextStyle(
-                                                fontSize: 9.5,
-                                                fontWeight: FontWeight.w800,
-                                                letterSpacing: 0.3,
-                                                color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF2563EB),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      const Spacer(),
-                                      // High-Contrast Article Date/Time Badge
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
-                                        decoration: BoxDecoration(
-                                          color: isDark ? const Color(0xFF0F2344) : const Color(0xFFEFF6FF),
-                                          borderRadius: BorderRadius.circular(5),
-                                          border: Border.all(
-                                            color: isDark ? const Color(0xFF0284C7).withOpacity(0.6) : const Color(0xFF93C5FD),
-                                            width: 1,
-                                          ),
-                                        ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Icon(
-                                              Icons.calendar_today_rounded,
-                                              size: 9.5,
-                                              color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF2563EB),
-                                            ),
-                                            const SizedBox(width: 3.5),
-                                            Text(
-                                              article.formattedDateTime,
-                                              style: TextStyle(
-                                                fontSize: 9.5,
-                                                fontWeight: FontWeight.w800,
-                                                color: isDark ? const Color(0xFFE2E8F0) : const Color(0xFF1D4ED8),
-                                                letterSpacing: 0.1,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-
-                                  const SizedBox(height: 8),
-
-                                  // Zero-scroll content expanding smoothly into card
-                                  Expanded(
-                                    child: _loadingAiArticleIds.contains(article.id) &&
-                                        ((_aiSummaries[article.id] ?? article.summary).trim().length < 50 ||
-                                            (_aiSummaries[article.id] ?? article.summary).trim().toLowerCase() == article.title.trim().toLowerCase())
-                                        ? _SummarySkeletonLoader(isDark: isDark)
-                                        : FormattedSummaryView(
-                                            summary: _aiSummaries[article.id] ?? article.summary,
-                                            isDark: isDark,
-                                            player: article.player,
-                                            city: article.city,
-                                            state: article.state,
-                                            title: article.title,
-                                            fontSize: _summaryFontSize,
-                                            fontFamily: _summaryFontFamily == 'Serif'
-                                                ? 'serif'
-                                                : (_summaryFontFamily == 'Mono' ? 'monospace' : null),
-                                            lineHeight: _summaryLineHeight,
-                                          ),
-                                  ),
-
-                                  const SizedBox(height: 8),
-
-                                  // Clean Divider before Source
-                                  Divider(
-                                    height: 1,
-                                    thickness: 1,
-                                    color: isDark ? const Color(0xFF212C3D) : const Color(0xFFE2E8F0),
-                                  ),
-
-                                  const SizedBox(height: 6),
-
-                                  // Integrated Source Attribution
-                                  Row(
-                                    children: [
-                                      Icon(
-                                        Icons.newspaper_rounded,
-                                        size: 12,
-                                        color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF2563EB),
-                                      ),
-                                      const SizedBox(width: 5),
-                                      Text(
-                                        'Source: ',
-                                        style: TextStyle(
-                                          fontSize: 10.5,
-                                          fontWeight: FontWeight.w600,
-                                          color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                                        ),
-                                      ),
-                                      Expanded(
-                                        child: Text(
-                                          article.source,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w800,
-                                            color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF1E3A8A),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  if (article.sources.length > 1) ...[
-                                    const SizedBox(height: 4),
-                                    Wrap(
-                                      spacing: 5,
-                                      runSpacing: 3,
-                                      crossAxisAlignment: WrapCrossAlignment.center,
-                                      children: [
-                                        Text(
-                                          'Also reported by:',
-                                          style: TextStyle(
-                                            fontSize: 9.5,
-                                            fontWeight: FontWeight.w600,
-                                            color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
-                                          ),
-                                        ),
-                                        for (final s in article.sources.where((src) => src != article.source))
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                            decoration: BoxDecoration(
-                                              color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
-                                              borderRadius: BorderRadius.circular(5),
-                                              border: Border.all(
-                                                color: isDark ? const Color(0xFF1E293B) : const Color(0xFFE2E8F0),
-                                              ),
-                                            ),
-                                            child: Text(
-                                              s,
-                                              style: TextStyle(
-                                                fontSize: 9.5,
-                                                fontWeight: FontWeight.w700,
-                                                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569),
-                                              ),
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            ),
-                          ),
-
-                          // Sleek Bottom Action Row
-                          Padding(
-                            padding: const EdgeInsets.only(top: 6),
-                            child: Row(
-                              children: [
-                                // Swipe Navigation Micro-Indicator
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4.5),
-                                  decoration: BoxDecoration(
-                                    color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
-                                    borderRadius: BorderRadius.circular(7),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        Icons.swipe_rounded,
-                                        size: 11.5,
-                                        color: isDark ? const Color(0xFF64748B) : const Color(0xFF94A3B8),
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        '${index + 1}/${displayArticles.length}',
-                                        style: TextStyle(
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w700,
-                                          color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-
-                                const Spacer(),
-
-                                // "Read Full Story" -> Opens Source in Mobile Mode (WebView)
-                                Material(
-                                  color: Colors.transparent,
-                                  child: InkWell(
-                                    borderRadius: BorderRadius.circular(20),
-                                    onTap: () => _openMobileSourceWebView(context, article),
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                                      decoration: BoxDecoration(
-                                        gradient: const LinearGradient(
-                                          colors: [Color(0xFF4F46E5), Color(0xFF3730A3)],
-                                          begin: Alignment.topLeft,
-                                          end: Alignment.bottomRight,
-                                        ),
-                                        borderRadius: BorderRadius.circular(20),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: const Color(0xFF4F46E5).withOpacity(0.35),
-                                            blurRadius: 6,
-                                            offset: const Offset(0, 2),
-                                          ),
-                                        ],
-                                      ),
-                                      child: const Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(
-                                            Icons.auto_stories_rounded,
-                                            size: 13.5,
-                                            color: Colors.white,
-                                          ),
-                                          SizedBox(width: 5),
-                                          Text(
-                                            'Read Full Story',
-                                            style: TextStyle(
-                                              fontSize: 11.5,
-                                              fontWeight: FontWeight.w800,
-                                              color: Colors.white,
-                                              letterSpacing: 0.2,
-                                            ),
-                                          ),
-                                          SizedBox(width: 4),
-                                          Icon(
-                                            Icons.arrow_forward_rounded,
-                                            size: 12,
-                                            color: Colors.white,
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
+          return Transform.translate(
+            offset: Offset(0, translationY),
+            child: Transform.scale(
+              scale: scale,
+              child: Opacity(
+                opacity: opacity,
+                child: ExecutiveCardView(
+                  article: article,
+                  currentIndex: index,
+                  totalCount: widget.articles.length,
                 ),
-              );
-            },
+              ),
+            ),
           );
         },
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: provider.currentNavIndex,
-        onDestinationSelected: (index) {
-          provider.setNavIndex(index);
-          if (index == 0) {
-            provider.clearAllFiltersAndScrollTop();
-          }
-          Navigator.pop(context);
-        },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.newspaper_outlined),
-            selectedIcon: Icon(Icons.newspaper_rounded, color: Color(0xFF2563EB)),
-            label: 'News Feed',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.analytics_outlined),
-            selectedIcon: Icon(Icons.analytics_rounded, color: Color(0xFF2563EB)),
-            label: 'Dashboard',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.map_outlined),
-            selectedIcon: Icon(Icons.map_rounded, color: Color(0xFF2563EB)),
-            label: 'States',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.bookmark_outline_rounded),
-            selectedIcon: Icon(Icons.bookmark_rounded, color: Color(0xFF2563EB)),
-            label: 'Bookmarks',
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SummarySkeletonLoader extends StatefulWidget {
-  final bool isDark;
-
-  const _SummarySkeletonLoader({required this.isDark});
-
-  @override
-  State<_SummarySkeletonLoader> createState() => _SummarySkeletonLoaderState();
-}
-
-class _SummarySkeletonLoaderState extends State<_SummarySkeletonLoader>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _animation;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1100),
-    )..repeat(reverse: true);
-    _animation = Tween<double>(begin: 0.35, end: 0.85).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final baseColor = widget.isDark ? const Color(0xFF334155) : const Color(0xFFCBD5E1);
-
-    return AnimatedBuilder(
-      animation: _animation,
-      builder: (context, child) {
-        return Opacity(
-          opacity: _animation.value,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildBulletSkeleton(baseColor, [1.0, 0.72]),
-              const SizedBox(height: 12),
-              _buildBulletSkeleton(baseColor, [1.0, 0.88]),
-              const SizedBox(height: 12),
-              _buildBulletSkeleton(baseColor, [0.95, 0.60]),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildBulletSkeleton(Color color, List<double> widths) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          margin: const EdgeInsets.only(top: 5, right: 10),
-          width: 6,
-          height: 6,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-          ),
-        ),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: widths.map((w) {
-              return Container(
-                margin: const EdgeInsets.only(bottom: 6),
-                height: 12,
-                width: double.infinity,
-                child: FractionallySizedBox(
-                  alignment: Alignment.centerLeft,
-                  widthFactor: w,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: color,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-        ),
-      ],
     );
   }
 }

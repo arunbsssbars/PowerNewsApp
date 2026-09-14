@@ -60,9 +60,7 @@ setImmediate(async () => {
   }
 });
 
-function saveAiSummaryCache() {
-  // Pure in-memory cache; persistence is handled asynchronously via Cloud Firestore.
-}
+
 
 function pruneAiSummaryCache(activeArticles = []) {
   const cacheKeys = Object.keys(aiSummaryCache);
@@ -127,7 +125,6 @@ async function generateGeminiPowerSummary(articleId, title, snippet, category, p
     console.log(`[Gemini AI] Reusing identical syndicated story summary for: "${cleanTitle.slice(0, 40)}"`);
     if (articleId) {
       aiSummaryCache[articleId] = similarSummary;
-      saveAiSummaryCache();
       saveSummaryToFirestore(articleId, similarSummary, {
         title: cleanTitle,
         category: categoriesList[0],
@@ -166,7 +163,7 @@ async function generateGeminiPowerSummary(articleId, title, snippet, category, p
       }
       if (scraped && scraped.imageUrl) {
         articleImageUrl = scraped.imageUrl;
-        if (fullArticle && !fullArticle.imageUrl) {
+        if (fullArticle) {
           fullArticle.imageUrl = scraped.imageUrl;
         }
       }
@@ -178,7 +175,7 @@ async function generateGeminiPowerSummary(articleId, title, snippet, category, p
   // Strict No-Body Guard: If no authentic article content >= 120 chars exists, DO NOT call Gemini.
   // Hallucinating 60-80 words of metrics from an empty body or headline is strictly prohibited.
   if (!articleContent || articleContent.length < 120) {
-    return snippet && snippet.length > 25 ? snippet : cleanTitle;
+    return null;
   }
 
   // Step 2: Single-pass structured classification & narrative synthesis via Gemini AI
@@ -414,7 +411,7 @@ async function runGeminiBatchSummarization(articles = []) {
             articleStore.removeArticle(a.id);
             return;
           }
-          if (aiSum && aiSum.length > 30 && !aiSum.startsWith('• ')) {
+          if (aiSum && aiSum.length >= 75 && !aiSum.startsWith('• ') && aiSum.toLowerCase() !== a.title.trim().toLowerCase()) {
             a.summary = aiSum;
             processed++;
           }
@@ -453,42 +450,24 @@ function generateDailyDigest(cachedArticles = []) {
   const usedIds = new Set();
 
   function pickOne(predicate, pillarLabel) {
-    // Utmost Priority 1: Pick an article matching predicate that already has a genuine Gemini AI summary
-    let candidate = cachedArticles.find(a =>
+    // Strictly pick an article matching predicate that already has a genuine Gemini AI summary
+    const candidate = cachedArticles.find(a =>
       !usedIds.has(a.id) &&
       predicate(a) &&
       a.id &&
       aiSummaryCache[a.id] &&
       aiSummaryCache[a.id].length >= 75 &&
-      !aiSummaryCache[a.id].startsWith('• ')
+      !aiSummaryCache[a.id].startsWith('• ') &&
+      !aiSummaryCache[a.id].startsWith('- ') &&
+      !aiSummaryCache[a.id].startsWith('* ') &&
+      aiSummaryCache[a.id].toLowerCase() !== (a.title || '').trim().toLowerCase()
     );
-
-    // Priority 2: If none in this pillar has an AI summary yet, pick matching candidate
-    if (!candidate) {
-      candidate = cachedArticles.find(a => !usedIds.has(a.id) && predicate(a));
-    }
 
     if (candidate) {
       usedIds.add(candidate.id);
-      const isAi = Boolean(
-        candidate.id &&
-        aiSummaryCache[candidate.id] &&
-        aiSummaryCache[candidate.id].length >= 75 &&
-        !aiSummaryCache[candidate.id].startsWith('• ')
-      );
-      const fullSummary = isAi ? aiSummaryCache[candidate.id] : getLatestSummary(candidate);
-
-      let cleanBullet;
-      if (isAi) {
-        // Extract punchy first catalyst sentence from the narrative AI briefing
-        const firstSentence = fullSummary.split(/[.!?]\s+/)[0].trim();
-        cleanBullet = firstSentence.endsWith('.') ? firstSentence : `${firstSentence}.`;
-      } else {
-        cleanBullet = fullSummary
-          .split('\n')
-          .map(s => s.replace(/^[^a-zA-Z0-9]+/, '').trim())
-          .filter(s => s.length > 20)[0] || candidate.title;
-      }
+      const fullSummary = aiSummaryCache[candidate.id];
+      const firstSentence = fullSummary.split(/[.!?]\s+/)[0].trim();
+      const cleanBullet = firstSentence.endsWith('.') ? firstSentence : `${firstSentence}.`;
 
       selected.push({
         pillar: pillarLabel,
@@ -502,7 +481,7 @@ function generateDailyDigest(cachedArticles = []) {
         state: candidate.state,
         player: candidate.player,
         url: candidate.url,
-        isAiSummary: isAi,
+        isAiSummary: true,
       });
     }
   }
@@ -513,37 +492,26 @@ function generateDailyDigest(cachedArticles = []) {
   pickOne(a => a.player && a.player !== 'Power Sector Stakeholder' && /bhel|hitachi|siemens|abb|schneider|apar|genus|premier|waaree|inox|suzlon|larsen/i.test(a.player), 'OEMs & Equipment');
   pickOne(a => /cerc|serc|cea|ministry|ntpc|powergrid|nhpc|sjvn|seci/i.test(a.title + (a.player || '')), 'Policy & Regulators');
 
-  // Fill up to 5 items if any pillar was missing, preferring AI-summarized articles
+  // Fill up to 5 items if any pillar was missing, strictly using AI-summarized articles
   const remainingCandidates = cachedArticles
-    .filter(a => !usedIds.has(a.id))
-    .sort((a, b) => {
-      const aHasAi = (a.id && aiSummaryCache[a.id] && !aiSummaryCache[a.id].startsWith('• ')) ? 1 : 0;
-      const bHasAi = (b.id && aiSummaryCache[b.id] && !aiSummaryCache[b.id].startsWith('• ')) ? 1 : 0;
-      if (aHasAi !== bHasAi) return bHasAi - aHasAi;
-      return new Date(b.publishedAt || 0) - new Date(a.publishedAt || 0);
-    });
+    .filter(a =>
+      !usedIds.has(a.id) &&
+      a.id &&
+      aiSummaryCache[a.id] &&
+      aiSummaryCache[a.id].length >= 75 &&
+      !aiSummaryCache[a.id].startsWith('• ') &&
+      !aiSummaryCache[a.id].startsWith('- ') &&
+      !aiSummaryCache[a.id].startsWith('* ') &&
+      aiSummaryCache[a.id].toLowerCase() !== (a.title || '').trim().toLowerCase()
+    )
+    .sort((a, b) => new Date(b.publishedAt || 0) - new Date(a.publishedAt || 0));
 
   for (const a of remainingCandidates) {
     if (selected.length >= 5) break;
     usedIds.add(a.id);
-    const isAi = Boolean(
-      a.id &&
-      aiSummaryCache[a.id] &&
-      aiSummaryCache[a.id].length >= 75 &&
-      !aiSummaryCache[a.id].startsWith('• ')
-    );
-    const fullSummary = isAi ? aiSummaryCache[a.id] : getLatestSummary(a);
-
-    let cleanBullet;
-    if (isAi) {
-      const firstSentence = fullSummary.split(/[.!?]\s+/)[0].trim();
-      cleanBullet = firstSentence.endsWith('.') ? firstSentence : `${firstSentence}.`;
-    } else {
-      cleanBullet = fullSummary
-        .split('\n')
-        .map(s => s.replace(/^[^a-zA-Z0-9]+/, '').trim())
-        .filter(s => s.length > 20)[0] || a.title;
-    }
+    const fullSummary = aiSummaryCache[a.id];
+    const firstSentence = fullSummary.split(/[.!?]\s+/)[0].trim();
+    const cleanBullet = firstSentence.endsWith('.') ? firstSentence : `${firstSentence}.`;
 
     selected.push({
       pillar: a.categories && a.categories[0] ? a.categories[0].toUpperCase() : 'Sector News',
@@ -734,7 +702,6 @@ module.exports = {
   ai,
   aiSummaryCache,
   geminiCoolingDownUntil,
-  saveAiSummaryCache,
   pruneAiSummaryCache,
   getLatestSummary,
   findSimilarCachedSummary,

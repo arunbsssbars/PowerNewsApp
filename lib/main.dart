@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'providers/news_provider.dart';
 import 'screens/home_screen.dart';
 import 'screens/onboarding_screen.dart';
@@ -8,15 +7,13 @@ import 'theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  final prefs = await SharedPreferences.getInstance();
-  final bool hasSeenOnboarding = prefs.getBool('has_seen_onboarding') ?? false;
 
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => NewsProvider()),
       ],
-      child: PowerNewsApp(showOnboarding: !hasSeenOnboarding),
+      child: const PowerNewsApp(showOnboarding: false),
     ),
   );
 }

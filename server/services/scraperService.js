@@ -110,6 +110,47 @@ function isBoilerplate(txt) {
   );
 }
 
+function normalizeHdImageUrl(rawImg) {
+  if (!rawImg || typeof rawImg !== 'string') return null;
+  let img = rawImg.trim();
+
+  // 1. Upgrade WordPress scaled thumbnails (-150x150.jpg, -300x200.jpg -> .jpg)
+  img = img.replace(/-\d{2,4}x\d{2,4}(\.(?:jpe?g|png|webp))$/i, '$1');
+
+  // 2. Upgrade Indiatimes/ET thumbnails (width-150,height-112 -> width-1200,height-900)
+  if (img.includes('indiatimes.com') || img.includes('economictimes')) {
+    img = img.replace(/width-\d+,height-\d+/i, 'width-1200,height-900');
+  }
+
+  // 3. Upgrade generic width/size query params (e.g. ?w=150, ?width=150)
+  img = img.replace(/([?&])(w|width|h|height)=\d{1,3}(&|$)/gi, '$1$2=1200$3');
+
+  return img;
+}
+
+/**
+ * Image Optimization Microservice Pipeline
+ * Converts publisher OpenGraph (og:image) HD images into modern 16:9 WebP responsive variants (1080p and 720p).
+ * Uses high-performance Cloudflare edge image CDN (wsrv) to deliver 0-RAM instant transformation.
+ */
+function optimizeImageUrlTo16x9Webp(rawUrl, { width = 1080, height = 608, quality = 82 } = {}) {
+  if (!rawUrl || typeof rawUrl !== 'string' || !rawUrl.startsWith('http')) return rawUrl;
+  if (rawUrl.includes('wsrv.nl')) return rawUrl; // already optimized
+
+  const cleanUrl = normalizeHdImageUrl(rawUrl);
+  return `https://wsrv.nl/?url=${encodeURIComponent(cleanUrl)}&w=${width}&h=${height}&fit=cover&a=attention&output=webp&q=${quality}`;
+}
+
+function getImageResponsiveVariants(rawUrl) {
+  if (!rawUrl || typeof rawUrl !== 'string' || !rawUrl.startsWith('http')) return null;
+  const cleanUrl = normalizeHdImageUrl(rawUrl);
+  return {
+    raw: cleanUrl,
+    hd1080: optimizeImageUrlTo16x9Webp(cleanUrl, { width: 1080, height: 608, quality: 82 }),
+    hd720: optimizeImageUrlTo16x9Webp(cleanUrl, { width: 720, height: 405, quality: 80 }),
+  };
+}
+
 function extractLeadImage(document, html, targetUrl) {
   let img = null;
   if (document && document.querySelector) {
@@ -137,8 +178,16 @@ function extractLeadImage(document, html, targetUrl) {
         img = new URL(targetUrl).origin + img;
       } catch (_) {}
     }
-    if (img.startsWith('http') && !img.includes('1x1') && !img.includes('pixel') && !img.includes('favicon')) {
-      return img;
+    const lower = img.toLowerCase();
+    if (
+      img.startsWith('http') &&
+      !lower.includes('1x1') &&
+      !lower.includes('pixel') &&
+      !lower.includes('favicon') &&
+      !lower.includes('logo_small') &&
+      !lower.includes('80x80')
+    ) {
+      return normalizeHdImageUrl(img);
     }
   }
   return null;
@@ -162,7 +211,7 @@ function extractWithReadability(html, targetUrl) {
         return {
           summary: snippet.length > 380 ? snippet.slice(0, 375) + '...' : snippet,
           fullText: text.slice(0, 4500),
-          imageUrl: leadImage,
+          imageUrl: leadImage ? optimizeImageUrlTo16x9Webp(leadImage) : null,
         };
       }
     }
@@ -220,7 +269,7 @@ function extractWithCheerio(html, targetUrl) {
             return {
               summary: cleanSummary.length > 380 ? cleanSummary.slice(0, 375) + '...' : cleanSummary,
               fullText: fullText.slice(0, 4500),
-              imageUrl: leadImage,
+              imageUrl: leadImage ? optimizeImageUrlTo16x9Webp(leadImage) : null,
             };
           }
         }
@@ -272,7 +321,7 @@ async function fetchWithJina(targetUrl) {
         return {
           summary: summary.length > 380 ? summary.slice(0, 375) + '...' : summary,
           fullText: rawMarkdown.slice(0, 4500),
-          imageUrl: leadImage,
+          imageUrl: leadImage ? optimizeImageUrlTo16x9Webp(leadImage) : null,
         };
       }
     }
@@ -374,6 +423,8 @@ async function scrapeFullArticle(url) {
 module.exports = {
   scrapeFullArticle,
   resolvePublisherUrl,
+  optimizeImageUrlTo16x9Webp,
+  getImageResponsiveVariants,
   articleBodyCache,
   decodedUrlCache,
   BoundedLRUMap,

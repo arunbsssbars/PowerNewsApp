@@ -28,6 +28,7 @@ const {
   scrapeFullArticle,
 } = require('../services/scraperService');
 const { DEFAULT_PAGE_SIZE } = require('../config/constants');
+const { getSystemLifecycle } = require('../services/systemStateService');
 
 const router = express.Router();
 const rateLimit = require('express-rate-limit');
@@ -95,19 +96,23 @@ function getActiveArticles() {
   const retained = filterArticlesRetention7Days(cachedArticles);
   return retained
     .filter(a => {
-      const s = (a.id && aiSummaryCache[a.id]) || a.summary;
-      return Boolean(s && s.trim().length >= 40);
+      const s = a.id && aiSummaryCache[a.id];
+      return Boolean(
+        s &&
+        s.length >= 75 &&
+        !s.startsWith('• ') &&
+        !s.startsWith('- ') &&
+        !s.startsWith('* ') &&
+        s.toLowerCase() !== a.title.trim().toLowerCase()
+      );
     })
-    .map(a => {
-      const aiSummary = a.id && aiSummaryCache[a.id];
-      const bestSummary = aiSummary || a.summary || '';
-      return {
-        ...a,
-        title: cleanHeadline(a.title),
-        summary: bestSummary,
-        isAiSummary: Boolean(aiSummary && !aiSummary.startsWith('• ')),
-      };
-    });
+    .map(a => ({
+      ...a,
+      title: cleanHeadline(a.title),
+      summary: aiSummaryCache[a.id],
+      isAiSummary: true,
+      isAiGenerated: true,
+    }));
 }
 
 // ----------------------------------------------------------------------------
@@ -117,10 +122,19 @@ router.get('/health', (req, res) => {
   const rawArticles = articleStore.getArticles();
   const activeSummaries = getActiveArticles();
   const rawDate = articleStore.getLastRefreshedAt();
+  const lifecycle = getSystemLifecycle();
+
   res.json({
     app: 'PowerNews',
     status: 'healthy',
-    uptimeSeconds: Math.floor(process.uptime()),
+    uptimeSeconds: lifecycle.uptimeSeconds,
+    uptimeFormatted: lifecycle.uptimeFormatted,
+    serverStartedAt: lifecycle.serverStartedAt,
+    serverStartedAtIso: lifecycle.serverStartedAtIso,
+    lastRestartReason: lifecycle.lastRestartReason,
+    restartCount: lifecycle.restartCount,
+    previousExitTime: lifecycle.previousExitTime,
+    databaseMode: lifecycle.databaseMode,
     totalArticles: activeSummaries.length,
     rawScrapedArticles: rawArticles.length,
     totalAiSummaries: Object.keys(aiSummaryCache).length,
@@ -264,7 +278,7 @@ router.get('/article-summary', async (req, res) => {
       id, title, snippet || '', category || 'Power Sector', player, state, discom, url, articleStore.getArticles(), existingArticle
     );
 
-    if (id && summary && !summary.startsWith('• ')) {
+    if (id && summary && !summary.startsWith('• ') && summary.length >= 75 && summary.toLowerCase() !== title.trim().toLowerCase()) {
       aiSummaryCache[id] = summary;
       if (existingArticle) existingArticle.summary = summary;
     }

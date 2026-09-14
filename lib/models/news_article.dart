@@ -170,9 +170,7 @@ class NewsArticle {
       sourceLinks: srcLinks,
       coverageCount: coverage,
       imageUrl: json['imageUrl']?.toString() ?? json['image_url']?.toString(),
-      isAiGenerated: json['isAiGenerated'] == true ||
-          json['isAiSummary'] == true ||
-          (json['isAiGenerated'] == null && json['isAiSummary'] == null),
+      isAiGenerated: json['isAiGenerated'] == true || json['isAiSummary'] == true,
     );
   }
 

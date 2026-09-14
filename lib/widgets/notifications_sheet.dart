@@ -423,8 +423,9 @@ class _NotificationsSheetState extends State<NotificationsSheet> {
                             borderRadius: BorderRadius.circular(14),
                             onTap: () {
                               provider.markArticleAsRead(article.id);
-                              Navigator.push(
-                                context,
+                              final nav = Navigator.of(context);
+                              nav.pop();
+                              nav.push(
                                 MaterialPageRoute(
                                   builder: (_) => ArticleDetailScreen(
                                     articles: filtered,
