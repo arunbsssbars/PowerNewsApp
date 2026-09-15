@@ -23,6 +23,7 @@ const {
 const {
   scrapeFullArticle,
   articleBodyCache,
+  truncateArticleBody,
 } = require('./scraperService');
 
 const parser = new Parser({
@@ -101,7 +102,7 @@ async function fetchRSSArticles() {
         if (encodedHtml && encodedHtml.length > 200) {
           const cleanBody = cleanText(encodedHtml);
           if (cleanBody.length >= 150) {
-            embeddedFullText = cleanBody.slice(0, 4500);
+            embeddedFullText = truncateArticleBody(cleanBody, 4500);
             if (item.link) {
               const sentences = embeddedFullText.split(/(?<=[.!?])\s+/);
               const snippetText = sentences.slice(0, 2).join(' ').trim();

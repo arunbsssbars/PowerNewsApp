@@ -53,6 +53,8 @@ class NewsCard extends StatelessWidget {
           color: Colors.transparent,
           child: InkWell(
             borderRadius: BorderRadius.circular(16),
+            splashColor: Colors.transparent,
+            highlightColor: Colors.transparent,
             onTap: () {
               final list = allArticles ?? [article];
               Navigator.push(
@@ -76,7 +78,10 @@ class NewsCard extends StatelessWidget {
                   children: [
                     // Expanded Badges Row on the Left
                     Expanded(
-                      child: Row(
+                      child: Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
                           // Category Badge
                           Container(
@@ -109,7 +114,6 @@ class NewsCard extends StatelessWidget {
 
                           // Reading Time Pill
                           Container(
-                            margin: const EdgeInsets.only(left: 6),
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                             decoration: BoxDecoration(
                               color: isDark ? const Color(0xFF1F2937) : const Color(0xFFF1F5F9),
@@ -148,37 +152,30 @@ class NewsCard extends StatelessWidget {
                               final score = persona.calculateRelevance(article.title, article.summary, article.primaryCategory, article.player);
                               if (score < 40.0) return const SizedBox.shrink();
 
-                              return Flexible(
-                                child: Container(
-                                  margin: const EdgeInsets.only(left: 6),
-                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3.5),
-                                  decoration: BoxDecoration(
-                                    color: persona.badgeColor.withOpacity(isDark ? 0.25 : 0.12),
-                                    borderRadius: BorderRadius.circular(6),
-                                    border: Border.all(
-                                      color: persona.badgeColor.withOpacity(0.4),
-                                      width: 1,
-                                    ),
+                              return Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3.5),
+                                decoration: BoxDecoration(
+                                  color: persona.badgeColor.withOpacity(isDark ? 0.25 : 0.12),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(
+                                    color: persona.badgeColor.withOpacity(0.4),
+                                    width: 1,
                                   ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(persona.icon, size: 10.5, color: persona.badgeColor),
-                                      const SizedBox(width: 3.5),
-                                      Flexible(
-                                        child: Text(
-                                          '${persona.shortLabel} Priority',
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                            color: persona.badgeColor,
-                                            fontSize: 9.5,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(persona.icon, size: 10.5, color: persona.badgeColor),
+                                    const SizedBox(width: 3.5),
+                                    Text(
+                                      '${persona.shortLabel} Priority',
+                                      style: TextStyle(
+                                        color: persona.badgeColor,
+                                        fontSize: 9.5,
+                                        fontWeight: FontWeight.bold,
                                       ),
-                                    ],
-                                  ),
+                                    ),
+                                  ],
                                 ),
                               );
                             },
@@ -223,8 +220,7 @@ class NewsCard extends StatelessWidget {
                       child: Image.network(
                         article.imageUrl!,
                         fit: BoxFit.cover,
-                        cacheWidth: 1080,
-                        filterQuality: FilterQuality.medium,
+                        filterQuality: FilterQuality.high,
                         loadingBuilder: (context, child, loadingProgress) {
                           if (loadingProgress == null) return child;
                           return Container(

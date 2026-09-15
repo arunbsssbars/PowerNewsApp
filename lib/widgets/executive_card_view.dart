@@ -27,11 +27,11 @@ class ExecutiveCardView extends StatelessWidget {
     final diff = now.difference(dt);
     if (diff.inMinutes < 60) {
       final mins = diff.inMinutes.clamp(1, 59);
-      return '${mins}m ago';
+      return '${mins}m';
     } else if (diff.inHours < 24) {
-      return '${diff.inHours}h ago';
+      return '${diff.inHours}h';
     } else if (diff.inDays < 7) {
-      return '${diff.inDays}d ago';
+      return '${diff.inDays}d';
     }
     return '${dt.day}/${dt.month}';
   }
@@ -172,8 +172,7 @@ class ExecutiveCardView extends StatelessWidget {
             Image.network(
               imgUrl,
               fit: BoxFit.cover,
-              cacheWidth: 1080,
-              filterQuality: FilterQuality.medium,
+              filterQuality: FilterQuality.high,
               loadingBuilder: (context, child, loadingProgress) {
                 if (loadingProgress == null) return child;
                 return Center(

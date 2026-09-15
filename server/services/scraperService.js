@@ -83,6 +83,31 @@ async function resolvePublisherUrl(url) {
   return url;
 }
 
+function truncateArticleBody(text, limit = 4500) {
+  if (!text || text.length <= limit) return text;
+  
+  let truncated = text.slice(0, limit);
+  const lastPunc = Math.max(
+    truncated.lastIndexOf('. '), 
+    truncated.lastIndexOf('.\n'),
+    truncated.lastIndexOf('! '), 
+    truncated.lastIndexOf('? '),
+    truncated.lastIndexOf('."')
+  );
+
+  if (lastPunc > limit * 0.5) {
+    truncated = truncated.slice(0, lastPunc + 1);
+  } else {
+    // If no punctuation found, fallback to the last space
+    const lastSpace = truncated.lastIndexOf(' ');
+    if (lastSpace > limit * 0.5) {
+      truncated = truncated.slice(0, lastSpace);
+    }
+  }
+  
+  return truncated.trim() + '\n\n[... Read full article on publisher site]';
+}
+
 function isBoilerplate(txt) {
   if (!txt) return true;
   const lower = txt.toLowerCase();
@@ -106,7 +131,18 @@ function isBoilerplate(txt) {
     lower.includes('prohibited content policy') ||
     lower.includes('all rights reserved') ||
     lower.includes('please leave this field empty') ||
-    lower.includes('verify code (required)')
+    lower.includes('verify code (required)') ||
+    // Publisher Specific Footers (ET, Mercom, etc)
+    lower.includes('access the report here') ||
+    lower.includes('follow mercom india on whatsapp') ||
+    lower.includes('get the most relevant india solar and clean energy news') ||
+    lower.includes('join the community of') ||
+    lower.includes('subscribe to newsletter') ||
+    lower.includes('all about etenergyworld industry') ||
+    lower.includes('download the etenergyworld app') ||
+    lower.includes('save your favourite articles') ||
+    lower.includes('published on sep') ||
+    lower.includes('pti published on')
   );
 }
 
@@ -210,7 +246,7 @@ function extractWithReadability(html, targetUrl) {
         const snippet = sentences.slice(0, 2).join(' ').trim();
         return {
           summary: snippet.length > 380 ? snippet.slice(0, 375) + '...' : snippet,
-          fullText: text.slice(0, 4500),
+          fullText: truncateArticleBody(text, 4500),
           imageUrl: leadImage ? optimizeImageUrlTo16x9Webp(leadImage) : null,
         };
       }
@@ -268,7 +304,7 @@ function extractWithCheerio(html, targetUrl) {
           if (fullText.length >= 150) {
             return {
               summary: cleanSummary.length > 380 ? cleanSummary.slice(0, 375) + '...' : cleanSummary,
-              fullText: fullText.slice(0, 4500),
+              fullText: truncateArticleBody(fullText, 4500),
               imageUrl: leadImage ? optimizeImageUrlTo16x9Webp(leadImage) : null,
             };
           }
@@ -320,7 +356,7 @@ async function fetchWithJina(targetUrl) {
         const summary = sentences.slice(0, 2).join(' ').trim();
         return {
           summary: summary.length > 380 ? summary.slice(0, 375) + '...' : summary,
-          fullText: rawMarkdown.slice(0, 4500),
+          fullText: truncateArticleBody(rawMarkdown, 4500),
           imageUrl: leadImage ? optimizeImageUrlTo16x9Webp(leadImage) : null,
         };
       }
@@ -428,4 +464,5 @@ module.exports = {
   articleBodyCache,
   decodedUrlCache,
   BoundedLRUMap,
+  truncateArticleBody,
 };
