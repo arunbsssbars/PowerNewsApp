@@ -11,6 +11,8 @@ const articleStore = require('./services/articleStore');
 const { syncFeeds } = require('./services/rssService');
 
 const app = express();
+// Trust Render's reverse proxy for correct rate-limiting IP addresses
+app.set('trust proxy', 1);
 app.use(express.json()); // Need JSON parsing for POST/PUT requests
 app.use('/admin', express.static(path.join(__dirname, '..', 'public', 'admin')));
 
