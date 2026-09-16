@@ -454,6 +454,15 @@ const CORE_POWER_ANCHORS = [
   'green hydrogen', 'scada', 'iec 61850', 'iec 60870', 'opgw', 'amisp', 'rdss'
 ];
 
+// Keywords used by the Phase 1 Feed Ranking Algorithm to boost underserved verticals
+const HIGH_VALUE_KEYWORDS = [
+  'transformer', 'scada', 'smart grid', 'substation', 'discom',
+  'at&c', 'automation', 'artificial intelligence', ' oem', 'siemens',
+  'abb', 'hitachi', 'schneider', 'ge vernova', 'l&t', 'larsen', 'bhel',
+  'transmission', 'distribution', 'switchgear', 'insulator', 'rtu',
+  'iec 61850', 'grid controller', 'posoco', 'grid-india'
+];
+
 module.exports = {
   UTILITY_PLAYER_RULES,
   CITY_RULES,
@@ -463,4 +472,5 @@ module.exports = {
   CATEGORY_RULES,
   IRRELEVANT_PATTERNS,
   CORE_POWER_ANCHORS,
+  HIGH_VALUE_KEYWORDS,
 };

@@ -717,6 +717,43 @@ INSTRUCTIONS:
   };
 }
 
+async function discoverNewKeywordsFromNews(articles, existingKeywords = []) {
+  if (!ai || articles.length === 0) return { success: false, message: 'AI not configured or no articles provided.' };
+
+  const recentContent = articles.slice(0, 300).map(a => `${a.title} - ${a.summary}`).join('\n\n');
+  const existingListStr = existingKeywords.join(', ');
+
+  const prompt = `You are an expert analyst in the Indian Power Sector.
+Review the following recent news articles and identify emerging technologies, new OEMs, grid policies, or key stakeholders gaining traction.
+Compare them against our current tracked list: [${existingListStr}].
+
+Return a JSON array of the top 5 to 10 NEW keywords or entities we should add to our system to ensure we don't miss anything.
+Output strictly valid JSON array of strings (e.g., ["STATCOM", "Green Hydrogen", "Apar Industries"]). No markdown wrapping.
+
+Recent News Context:
+${recentContent.substring(0, 40000)} // Ensure we don't blow up token limits
+`;
+
+  try {
+    const model = process.env.GEMINI_MODEL ? process.env.GEMINI_MODEL.trim() : 'gemini-3.8-flash';
+    const response = await ai.models.generateContent({
+      model: model,
+      contents: prompt,
+    });
+    
+    let text = (response.text || '').trim();
+    if (text.startsWith('\`\`\`json')) text = text.replace(/\`\`\`json/, '');
+    if (text.startsWith('\`\`\`')) text = text.replace(/\`\`\`/, '');
+    if (text.endsWith('\`\`\`')) text = text.replace(/\`\`\`$/, '');
+    
+    const suggestedKeywords = JSON.parse(text.trim());
+    return { success: true, suggestedKeywords };
+  } catch (err) {
+    console.warn('[Gemini Discovery] Error:', err.message);
+    return { success: false, error: err.message };
+  }
+}
+
 module.exports = {
   ai,
   aiSummaryCache,
@@ -728,4 +765,5 @@ module.exports = {
   runGeminiBatchSummarization,
   generateDailyDigest,
   askGeminiQnA,
+  discoverNewKeywordsFromNews,
 };

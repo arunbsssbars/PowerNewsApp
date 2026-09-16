@@ -6,6 +6,7 @@ const { getArticleContentById } = require('../services/firestoreService');
 const {
   UTILITY_PLAYER_RULES,
   STATE_DISCOM_DIRECTORY,
+  HIGH_VALUE_KEYWORDS,
 } = require('../config/rules');
 const {
   cleanHeadline,
@@ -20,6 +21,7 @@ const {
   runGeminiBatchSummarization,
   generateDailyDigest,
   askGeminiQnA,
+  discoverNewKeywordsFromNews,
 } = require('../services/geminiService');
 const {
   searchLiveTopicRSS,
@@ -53,7 +55,7 @@ function requireApiKey(req, res, next) {
   }
   
   const expectedSecret = process.env.APP_CLIENT_SECRET;
-  const apiKey = req.headers['x-api-key'];
+  const apiKey = req.headers['x-api-key'] || req.query.key; // Added req.query.key for easy browser testing
   if (!apiKey || apiKey !== expectedSecret) {
     return res.status(401).json({ error: 'Unauthorized access' });
   }
@@ -228,7 +230,80 @@ router.get('/news', async (req, res) => {
     );
   }
 
-  filtered.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
+  // --- Phase 1: Balanced Power Sector Scoring Algorithm ---
+  const isDefaultFeed = !category || category === 'All';
+
+  filtered.forEach((a) => {
+    let baseScore = 100; // Base points
+
+    const titleLower = (a.title || '').toLowerCase();
+    const summaryLower = (a.summary || '').toLowerCase();
+    const sourceLower = (a.source || '').toLowerCase();
+    const categories = (a.categories || []).map((c) => c.toLowerCase());
+
+    // 2. Keyword Boosting (Targeting underserved verticals)
+    let keywordMatches = 0;
+    for (const kw of HIGH_VALUE_KEYWORDS) {
+      if (titleLower.includes(kw) || summaryLower.includes(kw)) {
+        keywordMatches++;
+      }
+    }
+    baseScore += (keywordMatches * 50);
+
+    // 3. Source Weighting
+    if (sourceLower.includes('powerline') || sourceLower.includes('press release')) {
+      baseScore += 80;
+    }
+    if (sourceLower.includes('mercom')) {
+      // Normalize Mercom's high volume
+      baseScore -= 20;
+    }
+
+    // Penalize generic solar if it's the main feed to allow tech/OEMs to surface
+    if (isDefaultFeed && (categories.includes('solar') || categories.includes('renewables'))) {
+      baseScore -= 30;
+    }
+
+    // 4. Time Decay (Gravity Algorithm: Score = P / (T + 2)^G)
+    const ageInHours = (Date.now() - new Date(a.publishedAt).getTime()) / (1000 * 60 * 60);
+    const safeAge = Math.max(0, ageInHours);
+    a._calculatedScore = baseScore / Math.pow(safeAge + 2, 1.5);
+  });
+
+  // Sort by calculated score descending
+  filtered.sort((a, b) => b._calculatedScore - a._calculatedScore);
+
+  // 1. Anti-Clumping (Category Quotas for Solar)
+  if (isDefaultFeed) {
+    let recentSolarCount = 0;
+    for (let i = 0; i < filtered.length; i++) {
+      const cats = (filtered[i].categories || []).map((c) => c.toLowerCase());
+      const isSolar = cats.includes('solar') || cats.includes('renewables');
+
+      if (isSolar) {
+        recentSolarCount++;
+        if (recentSolarCount > 2) {
+          // Find next non-solar article and swap to break the clump
+          let swapIdx = -1;
+          for (let j = i + 1; j < filtered.length; j++) {
+            const jCats = (filtered[j].categories || []).map((c) => c.toLowerCase());
+            if (!jCats.includes('solar') && !jCats.includes('renewables')) {
+              swapIdx = j;
+              break;
+            }
+          }
+          if (swapIdx !== -1) {
+            const temp = filtered[i];
+            filtered[i] = filtered[swapIdx];
+            filtered[swapIdx] = temp;
+            recentSolarCount = 0; // Reset after breaking clump
+          }
+        }
+      } else {
+        recentSolarCount = 0;
+      }
+    }
+  }
 
   const p = parseInt(page, 10) || 1;
   const l = parseInt(limit, 10) || DEFAULT_PAGE_SIZE;
@@ -417,8 +492,28 @@ router.get('/sources', (req, res) => {
 });
 
 // ----------------------------------------------------------------------------
-// Intelligence Features: Digest, Status, Ask Gemini
+// Intelligence Features: Digest, Status, Ask Gemini, Keyword Discovery, ML Data
 // ----------------------------------------------------------------------------
+router.get('/admin/discover-keywords', async (req, res) => {
+  const articles = articleStore.getArticles();
+  const result = await discoverNewKeywordsFromNews(articles, HIGH_VALUE_KEYWORDS);
+  res.json(result);
+});
+
+router.get('/admin/training-data', async (req, res) => {
+  const limit = parseInt(req.query.limit) || 50;
+  const data = await require('../services/firestoreService').getTrainingData(limit);
+  res.json({ success: true, data });
+});
+
+router.post('/admin/training-data/:id/status', async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+  if (!status) return res.status(400).json({ error: 'Status is required' });
+  const success = await require('../services/firestoreService').updateTrainingDataStatus(id, status);
+  res.json({ success });
+});
+
 router.get('/gemini-status', (req, res) => {
   const cachedArticles = articleStore.getArticles();
   const total = cachedArticles.length;

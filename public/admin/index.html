@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PowerNews Admin Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Force scrollbar to prevent layout shift */
+    html { overflow-y: scroll; }
+    .tab-btn { transition: all 0.2s; }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen text-gray-800 font-sans">
+  
+  <div id="loginScreen" class="flex items-center justify-center min-h-screen">
+    <div class="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
+      <h2 class="text-2xl font-bold mb-6 text-center text-blue-600">PowerNews Admin</h2>
+      <input type="password" id="apiKeyInput" placeholder="Enter Admin API Key" class="w-full p-3 border rounded mb-4 focus:outline-none focus:border-blue-500">
+      <button onclick="login()" class="w-full bg-blue-600 text-white p-3 rounded font-semibold hover:bg-blue-700">Login</button>
+    </div>
+  </div>
+
+  <div id="dashboardScreen" class="hidden min-h-screen flex flex-col">
+    <nav class="bg-blue-800 text-white shadow-lg">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex justify-between h-16 items-center">
+          <div class="font-bold text-xl">PowerNews HQ</div>
+          <div class="flex space-x-2">
+            <button onclick="switchTab('ml-data')" id="tab-ml-data" class="tab-btn px-4 py-2 rounded-md font-medium ring-2 ring-white bg-blue-900">ML Training Data</button>
+            <button onclick="switchTab('keywords')" id="tab-keywords" class="tab-btn px-4 py-2 rounded-md font-medium ring-2 ring-transparent hover:bg-blue-700">Keyword Discovery</button>
+            <button onclick="switchTab('health')" id="tab-health" class="tab-btn px-4 py-2 rounded-md font-medium ring-2 ring-transparent hover:bg-blue-700">System Health</button>
+            <button onclick="logout()" class="px-3 py-2 ml-4 rounded-md bg-red-600 hover:bg-red-700 font-medium text-sm">Logout</button>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <main class="flex-grow max-w-7xl mx-auto px-4 py-8 w-full">
+      <!-- ML Training Data Tab -->
+      <div id="view-ml-data" class="view-panel">
+        <div class="flex justify-between items-center mb-6">
+          <h2 class="text-2xl font-bold text-gray-800">ML Training Data (Phase 3)</h2>
+          <button onclick="loadTrainingData()" class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded shadow">Refresh Data</button>
+        </div>
+        <div id="mlDataLoading" class="text-gray-500 italic hidden">Loading recent data...</div>
+        <div id="mlDataContainer" class="space-y-6"></div>
+      </div>
+
+      <!-- Keyword Discovery Tab -->
+      <div id="view-keywords" class="view-panel hidden">
+        <h2 class="text-2xl font-bold text-gray-800 mb-2">AI Keyword Discovery</h2>
+        <p class="text-gray-600 mb-6">Trigger Gemini to read the latest news and suggest new power sector technologies or OEMs to track.</p>
+        <button onclick="discoverKeywords()" id="btnDiscover" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg shadow-md mb-8">Run Gemini Discovery</button>
+        
+        <div id="keywordsLoading" class="hidden">
+          <div class="animate-pulse flex space-x-4">
+            <div class="flex-1 space-y-4 py-1">
+              <div class="h-4 bg-gray-300 rounded w-3/4"></div>
+              <div class="space-y-2">
+                <div class="h-4 bg-gray-300 rounded"></div>
+                <div class="h-4 bg-gray-300 rounded w-5/6"></div>
+              </div>
+            </div>
+          </div>
+          <p class="text-sm text-gray-500 mt-4">Gemini is reading 300 articles. This takes ~15 seconds...</p>
+        </div>
+
+        <div id="keywordsResult" class="hidden bg-white p-6 rounded-lg shadow-md border-t-4 border-green-500">
+          <h3 class="font-bold text-lg mb-4">Gemini Recommended Additions:</h3>
+          <ul id="keywordsList" class="list-disc pl-5 space-y-2 text-lg"></ul>
+        </div>
+      </div>
+
+      <!-- System Health Tab -->
+      <div id="view-health" class="view-panel hidden">
+        <div class="flex justify-between items-center mb-6">
+          <h2 class="text-2xl font-bold text-gray-800">System Health & Memory</h2>
+          <div class="flex space-x-2">
+            <div class="bg-gray-200 rounded p-1 flex">
+              <button onclick="toggleHealthView('ui')" id="btn-health-ui" class="px-4 py-1 rounded bg-white shadow-sm font-medium text-sm">UI View</button>
+              <button onclick="toggleHealthView('json')" id="btn-health-json" class="px-4 py-1 rounded hover:bg-gray-300 text-gray-700 font-medium text-sm">JSON</button>
+            </div>
+            <button onclick="loadHealth()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1 rounded shadow text-sm">Refresh</button>
+          </div>
+        </div>
+        
+        <div id="healthLoading" class="text-gray-500 italic hidden">Fetching telemetry...</div>
+
+        <!-- Pretty UI View -->
+        <div id="health-ui-view" class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div class="bg-white p-6 rounded-lg shadow-sm border-t-4 border-blue-500">
+            <h3 class="text-gray-500 text-sm font-bold uppercase mb-1">Server Uptime</h3>
+            <div id="ui-uptime" class="text-2xl font-bold text-gray-800">-</div>
+            <div id="ui-started" class="text-xs text-gray-400 mt-2">-</div>
+          </div>
+          <div class="bg-white p-6 rounded-lg shadow-sm border-t-4 border-green-500">
+            <h3 class="text-gray-500 text-sm font-bold uppercase mb-1">Article Database</h3>
+            <div id="ui-articles" class="text-2xl font-bold text-gray-800">-</div>
+            <div id="ui-summaries" class="text-xs text-gray-400 mt-2">-</div>
+          </div>
+          <div class="bg-white p-6 rounded-lg shadow-sm border-t-4 border-purple-500">
+            <h3 class="text-gray-500 text-sm font-bold uppercase mb-1">Memory Usage (RAM)</h3>
+            <div id="ui-memory" class="text-2xl font-bold text-gray-800">-</div>
+            <div id="ui-heap" class="text-xs text-gray-400 mt-2">-</div>
+          </div>
+        </div>
+
+        <!-- Raw JSON View -->
+        <div id="health-json-view" class="hidden">
+          <pre id="healthData" class="bg-gray-900 text-green-400 p-6 rounded-lg shadow-inner overflow-x-auto text-sm font-mono"></pre>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <script>
+    let API_KEY = localStorage.getItem('powernews_api_key') || '';
+
+    if (API_KEY) {
+      document.getElementById('loginScreen').classList.add('hidden');
+      document.getElementById('dashboardScreen').classList.remove('hidden');
+      loadTrainingData();
+    }
+
+    function login() {
+      const key = document.getElementById('apiKeyInput').value.trim();
+      if (key) {
+        API_KEY = key;
+        localStorage.setItem('powernews_api_key', API_KEY);
+        window.location.reload();
+      }
+    }
+
+    function logout() {
+      localStorage.removeItem('powernews_api_key');
+      window.location.reload();
+    }
+
+    function switchTab(tabId) {
+      document.querySelectorAll('.view-panel').forEach(p => p.classList.add('hidden'));
+      document.getElementById('view-' + tabId).classList.remove('hidden');
+      
+      document.querySelectorAll('.tab-btn').forEach(b => {
+        b.classList.remove('bg-blue-900', 'ring-white');
+        b.classList.add('ring-transparent');
+      });
+      
+      const activeBtn = document.getElementById('tab-' + tabId);
+      activeBtn.classList.remove('ring-transparent');
+      activeBtn.classList.add('bg-blue-900', 'ring-white');
+
+      if (tabId === 'ml-data') loadTrainingData();
+      if (tabId === 'health') loadHealth();
+    }
+
+    function toggleHealthView(view) {
+      if(view === 'ui') {
+        document.getElementById('health-ui-view').classList.remove('hidden');
+        document.getElementById('health-json-view').classList.add('hidden');
+        document.getElementById('btn-health-ui').classList.add('bg-white', 'shadow-sm', 'text-gray-900');
+        document.getElementById('btn-health-ui').classList.remove('hover:bg-gray-300', 'text-gray-700');
+        document.getElementById('btn-health-json').classList.remove('bg-white', 'shadow-sm', 'text-gray-900');
+        document.getElementById('btn-health-json').classList.add('hover:bg-gray-300', 'text-gray-700');
+      } else {
+        document.getElementById('health-ui-view').classList.add('hidden');
+        document.getElementById('health-json-view').classList.remove('hidden');
+        document.getElementById('btn-health-json').classList.add('bg-white', 'shadow-sm', 'text-gray-900');
+        document.getElementById('btn-health-json').classList.remove('hover:bg-gray-300', 'text-gray-700');
+        document.getElementById('btn-health-ui').classList.remove('bg-white', 'shadow-sm', 'text-gray-900');
+        document.getElementById('btn-health-ui').classList.add('hover:bg-gray-300', 'text-gray-700');
+      }
+    }
+
+    async function apiCall(endpoint, options = {}) {
+      const url = \`/api\${endpoint}\`;
+      const headers = { 'x-api-key': API_KEY, 'Content-Type': 'application/json' };
+      const response = await fetch(url, { ...options, headers });
+      if (response.status === 401) {
+        logout();
+        throw new Error('Unauthorized');
+      }
+      return response.json();
+    }
+
+    // --- ML Data Logic ---
+    async function loadTrainingData() {
+      document.getElementById('mlDataLoading').classList.remove('hidden');
+      try {
+        const res = await apiCall('/admin/training-data?limit=20');
+        if (res.data && res.data.length > 0) renderMlData(res.data);
+        else document.getElementById('mlDataContainer').innerHTML = '<p class="text-gray-500">No V2 training data found yet.</p>';
+      } catch (e) {}
+      document.getElementById('mlDataLoading').classList.add('hidden');
+    }
+
+    function renderMlData(items) {
+      document.getElementById('mlDataContainer').innerHTML = items.map(item => \`
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+          <div class="flex justify-between items-start mb-4">
+            <div>
+              <h3 class="text-xl font-bold text-gray-900 mb-1">\${item.title}</h3>
+              <div class="text-sm text-gray-500">
+                <span class="font-semibold text-blue-600">\${item.publisher}</span> • 
+                Score: <span class="font-mono bg-gray-100 px-1 rounded">\${item.calculatedScore}</span> • 
+                \${new Date(item.createdAt).toLocaleString()}
+              </div>
+            </div>
+            <span class="px-3 py-1 rounded-full text-xs font-bold uppercase \${
+              item.mlStatus === 'approved' ? 'bg-green-100 text-green-800' :
+              item.mlStatus === 'rejected' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'
+            }" id="badge-\${item.id}">\${item.mlStatus}</span>
+          </div>
+          <div class="grid grid-cols-2 gap-6 mb-4">
+            <div class="bg-gray-50 p-4 rounded border h-32 overflow-y-auto text-sm">\${item.originalText}</div>
+            <div class="bg-blue-50 p-4 rounded border h-32 overflow-y-auto text-sm">\${item.geminiSummary || ''}</div>
+          </div>
+          <div class="flex justify-between items-center border-t pt-4">
+            <div class="text-sm text-gray-500">Entities: \${(item.matchedEntities||[]).join(', ')}</div>
+            <div class="space-x-2">
+              <button onclick="updateStatus('\${item.id}', 'rejected')" class="px-4 py-1 border border-red-200 text-red-600 rounded hover:bg-red-50 text-sm">Reject</button>
+              <button onclick="updateStatus('\${item.id}', 'approved')" class="px-4 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-sm">Approve</button>
+            </div>
+          </div>
+        </div>
+      \`).join('');
+    }
+
+    async function updateStatus(id, status) {
+      try {
+        await apiCall(\`/admin/training-data/\${id}/status\`, { method: 'POST', body: JSON.stringify({ status }) });
+        const badge = document.getElementById(\`badge-\${id}\`);
+        badge.textContent = status;
+        badge.className = \`px-3 py-1 rounded-full text-xs font-bold uppercase \${status === 'approved' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}\`;
+      } catch (e) {}
+    }
+
+    // --- Keywords & Health ---
+    async function discoverKeywords() {
+      const btn = document.getElementById('btnDiscover');
+      document.getElementById('keywordsLoading').classList.remove('hidden');
+      document.getElementById('keywordsResult').classList.add('hidden');
+      try {
+        const res = await apiCall('/admin/discover-keywords');
+        if (res.success) {
+          document.getElementById('keywordsResult').classList.remove('hidden');
+          document.getElementById('keywordsList').innerHTML = res.suggestedKeywords.map(k => \`<li>\${k}</li>\`).join('');
+        }
+      } catch (e) {}
+      document.getElementById('keywordsLoading').classList.add('hidden');
+    }
+
+    async function loadHealth() {
+      document.getElementById('healthLoading').classList.remove('hidden');
+      try {
+        const [health, memory] = await Promise.all([apiCall('/health'), apiCall('/memory')]);
+        
+        // Populate JSON
+        const combined = { system: health, memory: memory };
+        document.getElementById('healthData').textContent = JSON.stringify(combined, null, 2);
+        
+        // Populate UI
+        document.getElementById('ui-uptime').textContent = health.uptimeFormatted || 'Online';
+        document.getElementById('ui-started').textContent = 'Since: ' + (health.serverStartedAt || 'Unknown');
+        
+        document.getElementById('ui-articles').textContent = (health.rawScrapedArticles || 0) + ' Total';
+        document.getElementById('ui-summaries').textContent = (health.totalAiSummaries || 0) + ' AI Summaries';
+        
+        document.getElementById('ui-memory').textContent = memory.rssMb || 'N/A';
+        document.getElementById('ui-heap').textContent = 'Heap Used: ' + (memory.heapUsedMb || 'N/A');
+        
+      } catch (e) {}
+      document.getElementById('healthLoading').classList.add('hidden');
+    }
+  </script>
+</body>
+</html>

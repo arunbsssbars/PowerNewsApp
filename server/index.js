@@ -11,6 +11,8 @@ const articleStore = require('./services/articleStore');
 const { syncFeeds } = require('./services/rssService');
 
 const app = express();
+app.use(express.json()); // Need JSON parsing for POST/PUT requests
+app.use('/admin', express.static(path.join(__dirname, '..', 'public', 'admin')));
 
 // Security Headers via Helmet
 app.use(helmet({

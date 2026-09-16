@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { HIGH_VALUE_KEYWORDS } = require('../config/rules');
 
 let db = null;
 let isInitialized = false;
@@ -330,6 +331,27 @@ async function saveTrainingDataToFirestore(metadata) {
   const database = initFirestore();
   if (!database || !metadata.articleId || !metadata.originalText) return;
 
+  const titleLower = (metadata.title || '').toLowerCase();
+  const summaryLower = (metadata.geminiSummary || metadata.nativeSummary || '').toLowerCase();
+  const sourceLower = (metadata.publisher || '').toLowerCase();
+  
+  let keywordMatches = 0;
+  const matchedEntities = [];
+  for (const kw of HIGH_VALUE_KEYWORDS) {
+    if (titleLower.includes(kw) || summaryLower.includes(kw)) {
+      keywordMatches++;
+      matchedEntities.push(kw);
+    }
+  }
+
+  let calculatedScore = 100 + (keywordMatches * 50);
+  if (sourceLower.includes('powerline') || sourceLower.includes('press release')) {
+    calculatedScore += 80;
+  }
+  if (sourceLower.includes('mercom')) {
+    calculatedScore -= 20;
+  }
+
   const docData = {
     articleId: metadata.articleId,
     title: metadata.title || '',
@@ -340,6 +362,10 @@ async function saveTrainingDataToFirestore(metadata) {
     categories: metadata.categories || [],
     isStrictB2B: metadata.isStrictB2B || false,
     createdAt: new Date().toISOString(),
+    // --- NEW ML TRAINING FIELDS ---
+    calculatedScore: calculatedScore,
+    matchedEntities: matchedEntities,
+    mlStatus: 'auto_approved'
   };
 
   try {
@@ -372,6 +398,53 @@ async function getArticleContentById(id) {
   return null;
 }
 
+/**
+ * Retrieves training data records from Firestore.
+ * @param {number} limit - Maximum number of records to fetch
+ */
+async function getTrainingData(limit = 50) {
+  const database = initFirestore();
+  if (!database) return [];
+
+  try {
+    const snapshot = await database.collection('power60_training_data')
+      .orderBy('createdAt', 'desc')
+      .limit(limit)
+      .get();
+
+    const data = [];
+    snapshot.forEach(doc => {
+      data.push({ id: doc.id, ...doc.data() });
+    });
+    return data;
+  } catch (err) {
+    console.warn('[Firestore] Failed to fetch training data:', err.message);
+    return [];
+  }
+}
+
+/**
+ * Updates the approval or processing status of a training data record in Firestore.
+ * @param {string} articleId - The ID of the training article
+ * @param {string} status - New status (e.g., 'approved', 'rejected', 'auto_approved')
+ */
+async function updateTrainingDataStatus(articleId, status) {
+  const database = initFirestore();
+  if (!database || !articleId) return false;
+
+  try {
+    await database.collection('power60_training_data').doc(articleId).set({
+      mlStatus: status,
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+    console.log(`[Firestore] Updated training data status for ${articleId} to "${status}".`);
+    return true;
+  } catch (err) {
+    console.warn(`[Firestore] Failed to update training data status for ${articleId}:`, err.message);
+    return false;
+  }
+}
+
 module.exports = {
   initFirestore,
   loadAllSummariesFromFirestore,
@@ -379,4 +452,6 @@ module.exports = {
   purgeOldestIfNearLimit,
   saveTrainingDataToFirestore,
   getArticleContentById,
+  getTrainingData,
+  updateTrainingDataStatus,
 };
