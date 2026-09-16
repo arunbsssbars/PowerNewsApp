@@ -445,6 +445,29 @@ async function updateTrainingDataStatus(articleId, status) {
   }
 }
 
+/**
+ * Retrieves all approved training data records for ML fine-tuning.
+ */
+async function getApprovedTrainingData() {
+  const database = initFirestore();
+  if (!database) return [];
+
+  try {
+    const snapshot = await database.collection('power60_training_data')
+      .where('mlStatus', '==', 'approved')
+      .get();
+
+    const data = [];
+    snapshot.forEach(doc => {
+      data.push({ id: doc.id, ...doc.data() });
+    });
+    return data;
+  } catch (err) {
+    console.warn('[Firestore] Failed to fetch approved training data:', err.message);
+    return [];
+  }
+}
+
 module.exports = {
   initFirestore,
   loadAllSummariesFromFirestore,
@@ -454,4 +477,5 @@ module.exports = {
   getArticleContentById,
   getTrainingData,
   updateTrainingDataStatus,
+  getApprovedTrainingData,
 };

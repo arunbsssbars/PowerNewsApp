@@ -1079,7 +1079,7 @@ class NewsProvider extends ChangeNotifier {
         }
       } else {
         _articles = sorted;
-        _hasMore = sorted.length == _pageSize;
+        _hasMore = news.length == _pageSize;
         // Strictly persist ONLY verified AI-summarized articles into local cache
         await _cacheService.cacheArticles(cleanNews);
       }
@@ -1162,9 +1162,10 @@ class NewsProvider extends ChangeNotifier {
     notifyListeners();
 
     // 1. Instant Local Pagination: Ensure local cache only emits strictly verified AI summaries
-    if (_cachedFullList.length > _articles.length) {
+    final startIndex = _currentPage * _pageSize;
+    if (_cachedFullList.length > startIndex) {
       final nextBatch = _cachedFullList
-          .skip(_articles.length)
+          .skip(startIndex)
           .take(_pageSize)
           .where((a) {
             final s = a.summary.trim();
@@ -1174,13 +1175,15 @@ class NewsProvider extends ChangeNotifier {
                 !s.startsWith('* ');
           })
           .toList();
+          
+      _currentPage++;
       if (nextBatch.isNotEmpty) {
         _articles.addAll(nextBatch);
-        _hasMore = _cachedFullList.length > _articles.length;
-        _isLoadingMore = false;
-        notifyListeners();
-        return;
       }
+      _hasMore = _cachedFullList.length > _currentPage * _pageSize;
+      _isLoadingMore = false;
+      notifyListeners();
+      return;
     }
 
     // 2. Offline: If cache is exhausted, mark hasMore false
@@ -1194,7 +1197,7 @@ class NewsProvider extends ChangeNotifier {
 
     // 3. Online: Fetch next page from backend
     try {
-      final nextPage = (_articles.length ~/ _pageSize) + 1;
+      final nextPage = _currentPage + 1;
       final moreNews = await _apiService.getNews(
         category: _selectedCategory == 'All' ? null : _selectedCategory,
         player: (_selectedPlayer == 'All' || _selectedPlayer == 'All Players') ? null : _selectedPlayer,
@@ -1205,6 +1208,8 @@ class NewsProvider extends ChangeNotifier {
         page: nextPage,
         limit: _pageSize,
       );
+
+      _currentPage = nextPage;
 
       final cleanMore = moreNews.where((a) {
         final s = a.summary.trim();
@@ -1219,11 +1224,13 @@ class NewsProvider extends ChangeNotifier {
 
       if (cleanMore.isNotEmpty) {
         _articles.addAll(cleanMore);
-        _hasMore = moreNews.length == _pageSize;
         await _cacheService.cacheArticles(cleanMore);
-      } else {
-        _hasMore = false;
       }
+      _hasMore = moreNews.length == _pageSize;
+      
+      // If we filtered out the entire page but there is more, we could recursively fetch, 
+      // but for safety we just rely on the next scroll event or a "load more" trigger.
+      
     } catch (e) {
       _noInternetOnScroll = true;
       debugPrint('[NewsProvider] Error fetching more news: $e');

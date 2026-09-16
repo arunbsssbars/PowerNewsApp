@@ -20,6 +20,7 @@ class NewsArticle {
   final int coverageCount;
   final String? imageUrl;
   final bool isAiGenerated;
+  final double calculatedScore;
 
   NewsArticle({
     required this.id,
@@ -39,6 +40,7 @@ class NewsArticle {
     this.coverageCount = 1,
     this.imageUrl,
     this.isAiGenerated = true,
+    this.calculatedScore = 0.0,
   });
 
   static String cleanHtmlAndEntities(String input) {
@@ -171,6 +173,7 @@ class NewsArticle {
       coverageCount: coverage,
       imageUrl: json['imageUrl']?.toString() ?? json['image_url']?.toString(),
       isAiGenerated: json['isAiGenerated'] == true || json['isAiSummary'] == true,
+      calculatedScore: (json['_calculatedScore'] as num?)?.toDouble() ?? (json['calculatedScore'] as num?)?.toDouble() ?? 0.0,
     );
   }
 

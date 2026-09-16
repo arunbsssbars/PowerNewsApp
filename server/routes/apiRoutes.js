@@ -514,6 +514,32 @@ router.post('/admin/training-data/:id/status', async (req, res) => {
   res.json({ success });
 });
 
+router.get('/admin/export-dataset', async (req, res) => {
+  try {
+    const rawData = await require('../services/firestoreService').getApprovedTrainingData();
+    
+    // Format perfectly for Gemini Fine-Tuning (.jsonl)
+    let jsonlString = '';
+    for (const doc of rawData) {
+      if (!doc.originalText || !doc.geminiSummary) continue;
+      
+      const payload = {
+        messages: [
+          { role: 'user', content: doc.originalText },
+          { role: 'model', content: doc.geminiSummary }
+        ]
+      };
+      jsonlString += JSON.stringify(payload) + '\n';
+    }
+
+    res.setHeader('Content-Type', 'application/jsonl');
+    res.setHeader('Content-Disposition', 'attachment; filename="power60_dataset.jsonl"');
+    res.send(jsonlString);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to export dataset' });
+  }
+});
+
 router.get('/gemini-status', (req, res) => {
   const cachedArticles = articleStore.getArticles();
   const total = cachedArticles.length;

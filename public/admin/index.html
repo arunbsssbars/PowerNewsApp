@@ -41,7 +41,10 @@
       <div id="view-ml-data" class="view-panel">
         <div class="flex justify-between items-center mb-6">
           <h2 class="text-2xl font-bold text-gray-800">ML Training Data (Phase 3)</h2>
-          <button onclick="loadTrainingData()" class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded shadow">Refresh Data</button>
+          <div class="space-x-2">
+            <button onclick="downloadDataset()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded shadow font-medium">Download .jsonl Dataset</button>
+            <button onclick="loadTrainingData()" class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded shadow">Refresh Data</button>
+          </div>
         </div>
         <div id="mlDataLoading" class="text-gray-500 italic hidden">Loading recent data...</div>
         <div id="mlDataContainer" class="space-y-6"></div>
@@ -185,6 +188,10 @@
     }
 
     // --- ML Data Logic ---
+    function downloadDataset() {
+      window.open(`/api/admin/export-dataset?key=${API_KEY}`, '_blank');
+    }
+
     async function loadTrainingData() {
       document.getElementById('mlDataLoading').classList.remove('hidden');
       try {

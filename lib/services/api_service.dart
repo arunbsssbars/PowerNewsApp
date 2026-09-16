@@ -3,21 +3,19 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../models/news_article.dart';
 import '../models/morning_digest.dart';
+import '../config/app_config.dart';
+import '../core/constants/api_constants.dart';
 
 class ApiService {
-  static const String _clientSecret = String.fromEnvironment(
-    'APP_CLIENT_SECRET',
-    defaultValue: 'pwn_5a9b8c7d6e5f4g3h2i1j0',
-  );
-
   Map<String, String> get _headers => {
     'Content-Type': 'application/json',
-    'x-api-key': _clientSecret,
+    'x-api-key': AppConfig.apiKey,
   };
 
   static const String renderCloudHost = 'https://powernewsapp-backend.onrender.com';
 
-  static const List<String> candidateHosts = [
+  static List<String> get candidateHosts => [
+    AppConfig.apiBaseUrl,
     'http://172.20.10.11:3000',
     'http://127.0.0.1:3000',
     // 1. Production Render Cloud URL (Primary)
@@ -25,11 +23,10 @@ class ApiService {
     // 2. Localhost fallback (only when user manually runs node server in terminal)
     'http://localhost:3000',
     'http://10.0.2.2:3000',
-   
     'http://100.98.130.99:3000',
-  ];
+  ].toSet().toList(); // Deduplicate in case .env matches one of the hardcoded ones
 
-  String _activeHost = renderCloudHost;
+  String _activeHost = AppConfig.apiBaseUrl;
   int _lastTotalCount = 0;
 
   String get activeHost => _activeHost;
@@ -43,8 +40,8 @@ class ApiService {
     // Probe candidate hosts in parallel (12s for cloud host to allow cold boot, 3s for local)
     final List<Future<String?>> probes = candidateHosts.map((host) async {
       try {
-        final uri = Uri.parse('$host/api/health');
-        final timeoutSec = host == renderCloudHost ? 30 : 3;
+        final uri = Uri.parse('$host${ApiConstants.healthEndpoint}');
+        final timeoutSec = host.contains('onrender') ? 30 : 3;
         final res = await http.get(uri, headers: _headers).timeout(Duration(seconds: timeoutSec));
         if (res.statusCode == 200) {
           try {
@@ -108,8 +105,8 @@ class ApiService {
 
     for (final host in hostsToTry) {
       try {
-        final uri = Uri.parse('$host/api/news').replace(queryParameters: queryParams);
-        final timeoutSec = host == renderCloudHost ? 30 : 3;
+        final uri = Uri.parse('$host${ApiConstants.newsEndpoint}').replace(queryParameters: queryParams);
+        final timeoutSec = host.contains('onrender') ? 30 : 3;
         final response = await http.get(uri, headers: _headers).timeout(Duration(seconds: timeoutSec));
 
         if (response.statusCode == 200) {
@@ -132,13 +129,13 @@ class ApiService {
       }
     }
 
-    throw Exception('Could not connect to PowerNews cloud server ($renderCloudHost).');
+    throw Exception('Could not connect to PowerNews cloud server (${AppConfig.apiBaseUrl}).');
   }
 
 
   Future<Map<String, int>> getPlayers() async {
     try {
-      final uri = Uri.parse('$_activeHost/api/players');
+      final uri = Uri.parse('$_activeHost${ApiConstants.playersEndpoint}');
       final response = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 4));
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(utf8.decode(response.bodyBytes));
@@ -152,7 +149,7 @@ class ApiService {
 
   Future<Map<String, int>> getCities() async {
     try {
-      final uri = Uri.parse('$_activeHost/api/cities');
+      final uri = Uri.parse('$_activeHost${ApiConstants.citiesEndpoint}');
       final response = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 4));
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(utf8.decode(response.bodyBytes));
@@ -166,7 +163,7 @@ class ApiService {
 
   Future<Map<String, int>> getCategories() async {
     try {
-      final uri = Uri.parse('$_activeHost/api/categories');
+      final uri = Uri.parse('$_activeHost${ApiConstants.categoriesEndpoint}');
       final response = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 4));
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(utf8.decode(response.bodyBytes));
@@ -180,7 +177,7 @@ class ApiService {
 
   Future<Map<String, int>> getStates() async {
     try {
-      final uri = Uri.parse('$_activeHost/api/states');
+      final uri = Uri.parse('$_activeHost${ApiConstants.statesEndpoint}');
       final response = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 4));
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(utf8.decode(response.bodyBytes));
@@ -194,7 +191,7 @@ class ApiService {
 
   Future<Map<String, int>> getDiscoms() async {
     try {
-      final uri = Uri.parse('$_activeHost/api/discoms');
+      final uri = Uri.parse('$_activeHost${ApiConstants.discomsEndpoint}');
       final response = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 4));
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(utf8.decode(response.bodyBytes));
@@ -208,7 +205,7 @@ class ApiService {
 
   Future<Map<String, int>> getSources() async {
     try {
-      final uri = Uri.parse('$_activeHost/api/sources');
+      final uri = Uri.parse('$_activeHost${ApiConstants.sourcesEndpoint}');
       final response = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 4));
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(utf8.decode(response.bodyBytes));
@@ -225,7 +222,7 @@ class ApiService {
 
     // 1. Try local aggregator endpoint
     try {
-      var uriStr = '$_activeHost/api/article-content?url=${Uri.encodeComponent(url)}';
+      var uriStr = '$_activeHost${ApiConstants.articleContentEndpoint}?url=${Uri.encodeComponent(url)}';
       if (articleId != null && articleId.isNotEmpty) {
         uriStr += '&id=${Uri.encodeComponent(articleId)}';
       }
@@ -310,7 +307,7 @@ class ApiService {
 
     // Try active host first with a generous 12s timeout to accommodate on-demand article scraping + Gemini generation
     try {
-      final uri = Uri.parse('$_activeHost/api/article-summary').replace(queryParameters: queryParams);
+      final uri = Uri.parse('$_activeHost${ApiConstants.articleSummaryEndpoint}').replace(queryParameters: queryParams);
       final res = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 12));
       if (res.statusCode == 200) {
         final data = json.decode(utf8.decode(res.bodyBytes));
@@ -326,7 +323,7 @@ class ApiService {
     final fallbackHost = candidateHosts.firstWhere((h) => h != _activeHost, orElse: () => '');
     if (fallbackHost.isNotEmpty) {
       try {
-        final uri = Uri.parse('$fallbackHost/api/article-summary').replace(queryParameters: queryParams);
+        final uri = Uri.parse('$fallbackHost${ApiConstants.articleSummaryEndpoint}').replace(queryParameters: queryParams);
         final res = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 3));
         if (res.statusCode == 200) {
           final data = json.decode(utf8.decode(res.bodyBytes));
@@ -342,7 +339,7 @@ class ApiService {
 
   Future<MorningDigest?> fetchMorningDigest() async {
     try {
-      final uri = Uri.parse('$_activeHost/api/morning-digest');
+      final uri = Uri.parse('$_activeHost${ApiConstants.morningDigestEndpoint}');
       final res = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 6));
       if (res.statusCode == 200) {
         final data = json.decode(utf8.decode(res.bodyBytes));
@@ -360,7 +357,7 @@ class ApiService {
 
   Future<Map<String, dynamic>?> askGeminiGridQA(String question, {String? persona}) async {
     try {
-      final uri = Uri.parse('$_activeHost/api/ask-gemini');
+      final uri = Uri.parse('$_activeHost${ApiConstants.askGeminiEndpoint}');
       final res = await http.post(
         uri,
         headers: _headers,
@@ -387,7 +384,7 @@ class ApiService {
     if (trimmed.isEmpty) return [];
 
     try {
-      final uri = Uri.parse('$_activeHost/api/search-topic?q=${Uri.encodeComponent(trimmed)}');
+      final uri = Uri.parse('$_activeHost${ApiConstants.searchTopicEndpoint}?q=${Uri.encodeComponent(trimmed)}');
       final res = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 12));
       if (res.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(utf8.decode(res.bodyBytes));

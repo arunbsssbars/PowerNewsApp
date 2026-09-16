@@ -144,6 +144,37 @@ class NewsCard extends StatelessWidget {
                             ),
                           ),
 
+
+                          // 🔥 Trending Badge based on new Backend Scoring
+                          if (article.calculatedScore > 40.0)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3.5),
+                              margin: const EdgeInsets.only(right: 6),
+                              decoration: BoxDecoration(
+                                color: isDark ? const Color(0x33FF6B6B) : const Color(0x1AFF6B6B),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: isDark ? const Color(0x66FF6B6B) : const Color(0x4DFF6B6B),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Text('🔥', style: TextStyle(fontSize: 10)),
+                                  const SizedBox(width: 3.5),
+                                  Text(
+                                    'Trending',
+                                    style: TextStyle(
+                                      color: isDark ? const Color(0xFFFF8787) : const Color(0xFFE03131),
+                                      fontSize: 9.5,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+
                           // Grid Persona Relevance Tag (if active persona and high relevance)
                           Consumer<NewsProvider>(
                             builder: (context, prov, _) {
