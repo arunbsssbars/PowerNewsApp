@@ -12,6 +12,7 @@ RUN npm install --omit=dev
 
 # Copy backend files and configurations
 COPY server/ ./server/
+COPY public/ ./public/
 COPY news-aggregator.js ./
 
 # Default environment variables
