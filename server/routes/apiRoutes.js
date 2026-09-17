@@ -68,8 +68,29 @@ async function requireApiKey(req, res, next) {
   // 2. Otherwise, treat it as a Firebase ID Token (for web dashboard)
   const token = providedKey.replace(/^Bearer\s+/, '');
   try {
-    require('../services/firestoreService').initFirestore(); // Ensure Firebase App is initialized
     const admin = require('firebase-admin');
+    const { getApps, initializeApp, cert } = require('firebase-admin/app');
+    
+    // Ensure Firebase is initialized even if offline mode (USE_CLOUD_FIRESTORE=false) skipped it
+    if (getApps().length === 0) {
+      let serviceAccount = null;
+      if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+        try { serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT); }
+        catch (_) {
+          try { serviceAccount = JSON.parse(Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT, 'base64').toString('utf8')); }
+          catch (_) {}
+        }
+      }
+      if (!serviceAccount) {
+        const fs = require('fs');
+        const path = require('path');
+        const localKeyPath = path.join(__dirname, '..', 'config', 'serviceAccountKey.json');
+        if (fs.existsSync(localKeyPath)) serviceAccount = JSON.parse(fs.readFileSync(localKeyPath, 'utf8'));
+      }
+      
+      if (serviceAccount) initializeApp({ credential: cert(serviceAccount) });
+    }
+
     const decodedToken = await admin.auth().verifyIdToken(token);
     
     // STRICT ADMIN CHECK
