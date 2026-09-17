@@ -267,7 +267,7 @@ cron.schedule('30 3 * * *', async () => {
 
 // Automated missing keyword discovery (Runs at 04:00 AM & 04:00 PM IST)
 cron.schedule('0 4,16 * * *', async () => {
-  console.log(`[Cron] 🔍 Running scheduled automated missing keyword discovery...`);
+  console.log(`[Cron] 🔍 Running scheduled automated missing keyword discovery (04:00 AM / 04:00 PM IST)...`);
   try {
     const keywordService = require('./services/keywordService');
     const res = await keywordService.autoDiscoverAndAddKeywords(articleStore.getArticles());
@@ -279,6 +279,8 @@ cron.schedule('0 4,16 * * *', async () => {
   } catch (err) {
     console.warn(`[Cron] Automated keyword discovery failed:`, err.message);
   }
+}, {
+  timezone: 'Asia/Kolkata'
 });
 
 // Server bootstrap

@@ -3,149 +3,524 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PowerNews Admin Dashboard</title>
+  <title>PowerNews HQ — Admin & Intelligence Portal</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23F59E0B'%3E%3Cpath d='M13 2L3 14h8v8l10-12h-8V2z'/%3E%3C/svg%3E">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-auth-compat.js"></script>
   <style>
-    /* Force scrollbar to prevent layout shift */
-    html { overflow-y: scroll; }
-    .tab-btn { transition: all 0.2s; }
+    /* Prevent any vertical or horizontal layout shifts */
+    html { overflow-y: scroll; scroll-behavior: smooth; }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    
+    /* Stable tab transition styles with zero dimension recalculation */
+    .tab-btn {
+      transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+      box-sizing: border-box;
+    }
   </style>
 </head>
-<body class="bg-gray-100 min-h-screen text-gray-800 font-sans">
+<body class="bg-slate-50 min-h-screen text-slate-800 font-sans antialiased">
   
   <!-- Initial Loading Splash (prevents flash of login screen during session restore) -->
   <div id="appLoadingScreen" class="flex flex-col items-center justify-center min-h-screen px-4">
-    <div class="animate-spin inline-block w-10 h-10 border-[3px] border-current border-t-transparent text-blue-600 rounded-full" role="status"></div>
-    <p class="text-gray-500 mt-4 text-sm font-medium">Verifying admin session...</p>
+    <div class="animate-spin inline-block w-10 h-10 border-[3px] border-blue-600 border-t-transparent rounded-full" role="status"></div>
+    <p class="text-slate-500 mt-4 text-sm font-medium tracking-wide">Verifying PowerNews Admin session...</p>
   </div>
 
+  <!-- Google Sign-In Screen -->
   <div id="loginScreen" class="hidden flex items-center justify-center min-h-screen px-4">
-    <div class="bg-white p-8 rounded-lg shadow-md w-full max-w-md text-center">
-      <h2 class="text-2xl font-bold mb-6 text-blue-600">PowerNews Admin</h2>
-      <p class="text-gray-600 mb-6 text-sm">Sign in with your admin Google account to access the dashboard.</p>
-      <button onclick="signInWithGoogle()" class="w-full bg-white border border-gray-300 text-gray-700 p-3 rounded font-semibold hover:bg-gray-50 flex items-center justify-center space-x-2">
+    <div class="bg-white p-8 rounded-2xl shadow-xl border border-slate-200 w-full max-w-md text-center">
+      <div class="inline-flex items-center justify-center w-14 h-14 bg-blue-100 text-blue-700 rounded-2xl mb-4 shadow-inner">
+        <svg class="w-8 h-8 text-amber-500" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M13 2L3 14h8v8l10-12h-8V2z"/>
+        </svg>
+      </div>
+      <h2 class="text-2xl font-bold text-slate-900 tracking-tight">PowerNews HQ</h2>
+      <p class="text-slate-500 mt-1 mb-6 text-sm">Energy intelligence, ML pipelines & editorial control center.</p>
+      <button onclick="signInWithGoogle()" class="w-full bg-white border border-slate-300 text-slate-700 p-3 rounded-xl font-semibold hover:bg-slate-50 flex items-center justify-center space-x-3 shadow-sm transition-all">
         <svg class="w-5 h-5" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
         <span>Sign in with Google</span>
       </button>
-      <div id="loginError" class="hidden mt-4 text-red-600 text-sm font-medium bg-red-50 p-2 rounded"></div>
+      <div id="loginError" class="hidden mt-4 text-red-600 text-xs font-semibold bg-red-50 p-3 rounded-lg border border-red-200 text-left"></div>
     </div>
   </div>
 
+  <!-- Dashboard Screen -->
   <div id="dashboardScreen" class="hidden min-h-screen flex flex-col">
-    <nav class="bg-blue-800 text-white shadow-lg">
+    <!-- Top Navigation Bar (Engineered with fixed heights & shrink-0 to eliminate layout shifts) -->
+    <nav class="bg-blue-900 text-white shadow-md border-b border-blue-800 sticky top-0 z-40">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="flex justify-between h-16 items-center">
-          <div class="font-bold text-xl">PowerNews HQ</div>
-          <div class="flex space-x-2">
-            <button onclick="switchTab('ml-data')" id="tab-ml-data" class="tab-btn px-2 sm:px-4 py-2 rounded-md font-medium ring-2 ring-white bg-blue-900 text-sm sm:text-base">ML Training</button>
-            <button onclick="switchTab('keywords')" id="tab-keywords" class="tab-btn px-2 sm:px-4 py-2 rounded-md font-medium text-blue-200 hover:bg-blue-700 hover:text-white ring-transparent text-sm sm:text-base">Keywords</button>
-            <button onclick="switchTab('health')" id="tab-health" class="tab-btn px-2 sm:px-4 py-2 rounded-md font-medium text-blue-200 hover:bg-blue-700 hover:text-white ring-transparent text-sm sm:text-base">Health</button>
+        <div class="flex items-center justify-between h-16">
+          
+          <!-- Brand Logo -->
+          <div class="shrink-0 flex items-center space-x-2.5 font-bold text-lg sm:text-xl tracking-tight text-white cursor-pointer" onclick="switchTab('flutter-feed')">
+            <span class="p-1.5 bg-blue-800/80 border border-blue-700 rounded-lg shadow-sm">
+              <svg class="w-5 h-5 text-amber-400" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M13 2L3 14h8v8l10-12h-8V2z"/>
+              </svg>
+            </span>
+            <span>PowerNews <span class="text-amber-400 font-extrabold text-sm uppercase px-1.5 py-0.5 bg-blue-950/60 rounded">HQ</span></span>
           </div>
-          <button onclick="logout()" class="text-sm font-semibold text-blue-200 hover:text-white">Logout</button>
+
+          <!-- Center Navigation Tabs (Strictly no layout shift, fixed sizes, whitespace-nowrap) -->
+          <div class="flex items-center space-x-1 sm:space-x-2 overflow-x-auto no-scrollbar py-1 shrink-0">
+            <button onclick="switchTab('flutter-feed')" id="tab-flutter-feed" class="tab-btn shrink-0 whitespace-nowrap h-9 px-3 sm:px-3.5 flex items-center justify-center rounded-lg text-xs sm:text-sm font-semibold border transition-all duration-150 bg-blue-950 text-white border-blue-600 shadow-sm">
+              <span class="mr-1.5">📱</span> Flutter Feed
+            </button>
+            <button onclick="switchTab('keywords')" id="tab-keywords" class="tab-btn shrink-0 whitespace-nowrap h-9 px-3 sm:px-3.5 flex items-center justify-center rounded-lg text-xs sm:text-sm font-semibold border border-transparent text-blue-100 hover:bg-blue-800/70 hover:text-white transition-all duration-150">
+              <span class="mr-1.5">⚡</span> Keywords
+            </button>
+            <button onclick="switchTab('data-playbook')" id="tab-data-playbook" class="tab-btn shrink-0 whitespace-nowrap h-9 px-3 sm:px-3.5 flex items-center justify-center rounded-lg text-xs sm:text-sm font-semibold border border-transparent text-blue-100 hover:bg-blue-800/70 hover:text-white transition-all duration-150">
+              <span class="mr-1.5">📖</span> Data Playbook
+            </button>
+            <button onclick="switchTab('ml-data')" id="tab-ml-data" class="tab-btn shrink-0 whitespace-nowrap h-9 px-3 sm:px-3.5 flex items-center justify-center rounded-lg text-xs sm:text-sm font-semibold border border-transparent text-blue-100 hover:bg-blue-800/70 hover:text-white transition-all duration-150">
+              <span class="mr-1.5">🤖</span> ML Training
+            </button>
+            <button onclick="switchTab('health')" id="tab-health" class="tab-btn shrink-0 whitespace-nowrap h-9 px-3 sm:px-3.5 flex items-center justify-center rounded-lg text-xs sm:text-sm font-semibold border border-transparent text-blue-100 hover:bg-blue-800/70 hover:text-white transition-all duration-150">
+              <span class="mr-1.5">🩺</span> Health
+            </button>
+          </div>
+
+          <!-- Right User Controls -->
+          <div class="shrink-0 flex items-center space-x-2">
+            <span class="hidden md:inline-block text-xs text-blue-200 font-mono">arunbsssbars@gmail.com</span>
+            <button onclick="logout()" class="text-xs sm:text-sm font-medium px-2.5 py-1 rounded-md text-blue-200 hover:text-white hover:bg-blue-800 transition-colors">Logout</button>
+          </div>
+
         </div>
       </div>
     </nav>
 
+    <!-- Main Content Body -->
     <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
       
-      <!-- ML Training Data Tab -->
-      <div id="view-ml-data" class="view-panel">
-        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
-          <h2 class="text-2xl font-bold mb-4 sm:mb-0">ML Training Data</h2>
-          <div class="flex space-x-2">
-            <button onclick="loadTrainingData()" class="bg-white border border-gray-300 px-4 py-2 rounded shadow-sm hover:bg-gray-50 text-sm font-semibold">Refresh</button>
-            <button onclick="downloadDataset()" class="bg-purple-600 text-white px-4 py-2 rounded shadow-sm hover:bg-purple-700 text-sm font-semibold flex items-center">
-              <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-              Download .jsonl Dataset
+      <!-- ================================================================= -->
+      <!-- TAB 1: FLUTTER LIVE FEED                                         -->
+      <!-- ================================================================= -->
+      <div id="view-flutter-feed" class="view-panel">
+        <!-- Purpose Card -->
+        <div class="bg-gradient-to-r from-blue-900 to-indigo-900 text-white p-5 rounded-2xl shadow-sm mb-6 border border-blue-800">
+          <div class="flex items-start justify-between">
+            <div>
+              <div class="flex items-center space-x-2">
+                <span class="px-2 py-0.5 bg-blue-700/80 rounded text-xs font-bold uppercase tracking-wider text-blue-200">📱 Mobile Production Gatekeeper</span>
+                <span class="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 rounded text-xs font-semibold">Strict 7-Day Window</span>
+              </div>
+              <h2 class="text-xl sm:text-2xl font-bold mt-1.5">Flutter Live Feed Inspector</h2>
+              <p class="text-blue-200 text-xs sm:text-sm mt-1 max-w-3xl">
+                <strong>Purpose of this screen:</strong> Displays the exact, vetted pool of power news currently delivered to the PowerNews Flutter mobile app via <code>/api/news</code>. Articles here meet strict quality rules: valid 7-day retention, genuine Gemini 60-word narrative summary (&ge; 75 characters), zero bullet stubs, and ranked via the PowerScore algorithm.
+              </p>
+            </div>
+            <button onclick="loadFlutterFeed()" class="bg-white/10 hover:bg-white/20 text-white px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center border border-white/20 transition-all shrink-0">
+              <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+              Refresh Feed
             </button>
           </div>
         </div>
-        
-        <div id="mlDataLoading" class="hidden text-center py-10">
-          <div class="animate-spin inline-block w-8 h-8 border-[3px] border-current border-t-transparent text-blue-600 rounded-full" role="status"></div>
+
+        <!-- Feed Control Bar -->
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 mb-6 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div class="flex items-center space-x-2 text-sm text-slate-600 w-full sm:w-auto">
+            <span class="font-bold text-slate-900 text-base" id="flutterFeedCount">0</span>
+            <span>articles currently live on mobile app</span>
+          </div>
+          <div class="w-full sm:w-72">
+            <input id="flutterFeedFilter" type="text" placeholder="Filter live articles by title, entity, state..." oninput="filterFlutterArticles()" class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-xs sm:text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+          </div>
         </div>
-        
-        <div id="mlDataContainer" class="space-y-6"></div>
+
+        <!-- Feed Loader -->
+        <div id="flutterFeedLoading" class="text-center py-12">
+          <div class="animate-spin inline-block w-8 h-8 border-[3px] border-blue-600 border-t-transparent rounded-full" role="status"></div>
+          <p class="text-slate-500 mt-2 text-xs font-medium">Fetching live Flutter articles from server...</p>
+        </div>
+
+        <!-- Live Articles Container -->
+        <div id="flutterFeedContainer" class="space-y-4"></div>
       </div>
 
-      <!-- Keyword Automation Tab -->
+      <!-- ================================================================= -->
+      <!-- TAB 2: KEYWORD AUTOMATION                                        -->
+      <!-- ================================================================= -->
       <div id="view-keywords" class="view-panel hidden">
-        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-3">
-          <div>
-            <h2 class="text-2xl font-bold">Keyword Automation</h2>
-            <p class="text-sm text-gray-500">Entities used by AI scoring to rank high-value power sector verticals.</p>
-          </div>
-          <div class="flex space-x-2">
-            <button id="btnAutoDiscover" onclick="autoDiscoverKeywords()" class="bg-blue-600 text-white px-4 py-2 rounded shadow-sm hover:bg-blue-700 font-semibold flex items-center text-sm">
-              <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+        <!-- Purpose Card -->
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 mb-6">
+          <div class="flex items-start justify-between">
+            <div>
+              <div class="flex items-center space-x-2">
+                <span class="px-2 py-0.5 bg-amber-100 text-amber-800 rounded text-xs font-bold uppercase tracking-wider">⚡ Domain Entity Anchors</span>
+                <span class="px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-xs font-semibold">Algorithm Multipliers</span>
+              </div>
+              <h2 class="text-xl sm:text-2xl font-bold text-slate-900 mt-1">Keyword Automation & Vertical Weighting</h2>
+              <p class="text-slate-600 text-xs sm:text-sm mt-1 max-w-3xl">
+                <strong>Purpose of this screen:</strong> Manages foundational & dynamic energy terminology used by our algorithmic ranking engine. When an article contains an active keyword, it automatically receives a <strong>+50 PowerScore boost</strong>, prioritizing transmission, discom, smart grid, and regulatory news over generic solar clumps.
+              </p>
+            </div>
+            <button id="btnAutoDiscover" onclick="autoDiscoverKeywords()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold flex items-center shadow-sm shrink-0 transition-all">
+              <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
               Auto-Discover & Add Missing
             </button>
           </div>
+
+          <!-- Cron Notice Banner -->
+          <div class="mt-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-xs">
+            <div class="flex items-center space-x-3">
+              <div class="p-2 bg-blue-600 text-white rounded-lg shrink-0">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+              </div>
+              <div>
+                <div class="text-xs sm:text-sm font-bold text-slate-900">Automated Background Cron Schedule Active</div>
+                <div class="text-xs text-slate-600">Background agent automatically executes twice daily at <strong>04:00 AM & 04:00 PM IST</strong> to discover emerging power keywords from newly ingested articles and commit them to Cloud Firestore.</div>
+              </div>
+            </div>
+            <span class="px-2.5 py-1 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-full uppercase tracking-wider flex items-center shrink-0 w-max">
+              <span class="w-2 h-2 rounded-full bg-emerald-500 mr-1.5 animate-pulse"></span> 04:00 AM & PM IST
+            </span>
+          </div>
+
+          <!-- Tips for Auto-Discover Button -->
+          <div class="mt-3 bg-amber-50/80 border border-amber-200 rounded-xl p-3.5 text-xs text-amber-900">
+            <div class="font-bold flex items-center space-x-1.5 mb-1">
+              <span>💡 Tips on "Auto-Discover & Add Missing":</span>
+            </div>
+            <ul class="list-disc pl-5 space-x-1 space-y-0.5 text-amber-800 leading-relaxed">
+              <li><strong>Zero Downtime:</strong> Inspects the latest 200+ articles in memory using Gemini AI to identify trending power sector entities (e.g., <em>STATCOM, Green Hydrogen, BESS, Pumped Storage, PM-KUSUM</em>).</li>
+              <li><strong>Gap Detection:</strong> Automatically cross-references found entities against the 100+ active keywords to isolate missing ones.</li>
+              <li><strong>Immediate Algorithmic Lift:</strong> Newly committed entities are instantly saved to Firestore and boost matching news articles on the Flutter mobile app by <strong>+50 points</strong>.</li>
+            </ul>
+          </div>
         </div>
 
-        <!-- Add Custom Keyword Form -->
-        <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mb-6 flex flex-col sm:flex-row gap-2">
-          <input id="newKeywordInput" type="text" placeholder="Add custom keyword or entity (e.g. STATCOM, Green Hydrogen)..." class="flex-grow border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" onkeydown="if(event.key==='Enter') addCustomKeyword()">
-          <button onclick="addCustomKeyword()" class="bg-gray-800 text-white px-5 py-2 rounded text-sm font-semibold hover:bg-black">Add Keyword</button>
+        <!-- Add Custom Keyword Form with Duplicate Alert -->
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 mb-6">
+          <div class="text-sm font-bold text-slate-900 mb-2">Add Custom Keyword / Entity</div>
+          <div class="flex flex-col sm:flex-row gap-2">
+            <input id="newKeywordInput" type="text" placeholder="Enter power entity (e.g., BESS, STATCOM, Green Ammonia, RDSS)..." class="flex-grow border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" onkeydown="if(event.key==='Enter') addCustomKeyword()">
+            <button onclick="addCustomKeyword()" class="bg-slate-900 text-white px-5 py-2 rounded-lg text-sm font-semibold hover:bg-black transition-all">Add to Database</button>
+          </div>
+          
+          <!-- Duplicate Warning / Success Banner -->
+          <div id="keywordActionFeedback" class="hidden mt-3 p-3 rounded-lg text-xs font-semibold flex items-center justify-between">
+            <span id="keywordFeedbackText"></span>
+            <button onclick="document.getElementById('keywordActionFeedback').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 font-bold ml-2">&times;</button>
+          </div>
         </div>
 
+        <!-- Loader -->
         <div id="keywordsLoading" class="hidden text-center py-8">
-          <div class="animate-spin inline-block w-8 h-8 border-[3px] border-current border-t-transparent text-blue-600 rounded-full" role="status"></div>
-          <p class="text-gray-500 mt-2 text-sm">Gemini AI is analyzing recent news to detect and add missing entities...</p>
+          <div class="animate-spin inline-block w-8 h-8 border-[3px] border-blue-600 border-t-transparent rounded-full" role="status"></div>
+          <p class="text-slate-500 mt-2 text-xs font-medium">Gemini AI is analyzing recent news to detect and commit missing entities...</p>
         </div>
 
-        <div id="keywordsBanner" class="hidden mb-6 p-4 rounded-lg text-sm font-medium"></div>
+        <div id="keywordsBanner" class="hidden mb-6 p-4 rounded-xl text-xs sm:text-sm font-medium"></div>
 
-        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+        <!-- Active Keywords View -->
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
           <div class="flex justify-between items-center mb-4">
-            <h3 class="font-bold text-gray-900">Active Keyword Entities (<span id="keywordsCount">0</span>)</h3>
-            <span class="text-xs text-gray-500">Auto-saved to Cloud Firestore</span>
+            <div>
+              <h3 class="font-bold text-slate-900 text-base sm:text-lg">Active Keyword Entities (<span id="keywordsCount">0</span>)</h3>
+              <p class="text-xs text-slate-500">Auto-saved to Cloud Firestore <code>system_config/keywords</code> & loaded into 0ms memory.</p>
+            </div>
+            <span class="text-xs font-semibold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-md border border-blue-200">Live Scoring Weight: +50 / match</span>
           </div>
           <div id="keywordsChipContainer" class="flex flex-wrap gap-2"></div>
         </div>
       </div>
 
-      <!-- System Health Tab -->
+      <!-- ================================================================= -->
+      <!-- TAB 3: DATA PLAYBOOK & POWER60 GUIDE                              -->
+      <!-- ================================================================= -->
+      <div id="view-data-playbook" class="view-panel hidden">
+        <!-- Purpose Card -->
+        <div class="bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-950 text-white p-6 rounded-2xl shadow-md mb-6 border border-slate-800">
+          <div class="flex items-center space-x-2 mb-2">
+            <span class="px-2.5 py-0.5 bg-amber-400/20 text-amber-300 rounded text-xs font-bold uppercase tracking-wider">Strategic Knowledge Base</span>
+            <span class="px-2.5 py-0.5 bg-emerald-400/20 text-emerald-300 rounded text-xs font-semibold">1,277+ Articles Indexed</span>
+          </div>
+          <h2 class="text-2xl font-bold tracking-tight">Data Playbook: Utilizing Firestore Collection & Power60 Algorithm</h2>
+          <p class="text-slate-300 text-xs sm:text-sm mt-2 max-w-4xl leading-relaxed">
+            This operational playbook documents the exact mathematical formulation of our ranking algorithm, step-by-step procedures for fine-tuning custom LLMs using our Firestore collection, the complete scraping-to-Flutter pipeline, known system flaws, and our technical roadmap.
+          </p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          
+          <!-- Left Column: Pipeline & Data Uses (2 Cols) -->
+          <div class="lg:col-span-2 space-y-6">
+
+            <!-- Section 1: How Current System Works -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+              <div class="flex items-center space-x-3 mb-4">
+                <span class="p-2 bg-blue-100 text-blue-700 rounded-lg font-bold">1</span>
+                <div>
+                  <h3 class="font-bold text-lg text-slate-900">Current Pipeline Architecture: Scraper to Flutter</h3>
+                  <p class="text-xs text-slate-500">Detailed workflow of crawling, cleaning, discarding, summarization, and mobile rendering.</p>
+                </div>
+              </div>
+
+              <div class="space-y-4 text-xs sm:text-sm text-slate-700">
+                <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
+                  <div class="font-bold text-blue-800 flex items-center mb-1">
+                    <span class="w-2 h-2 rounded-full bg-blue-600 mr-2"></span> A. Crawling & RSS Aggregation (Every 20 Minutes)
+                  </div>
+                  <p class="text-slate-600">
+                    A multi-source crawler queries 15+ verified Indian energy feeds (PIB Ministry of Power, Mercom India, PV Magazine, Financial Express Power, Economic Times Energy, LiveMint, CERC). Node.js uses <code>axios</code> with retry logic and custom User-Agent headers to pull both XML/RSS payloads and direct HTML articles.
+                  </p>
+                </div>
+
+                <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
+                  <div class="font-bold text-indigo-800 flex items-center mb-1">
+                    <span class="w-2 h-2 rounded-full bg-indigo-600 mr-2"></span> B. Data Cleaning & Non-Power Sector Discarding
+                  </div>
+                  <p class="text-slate-600">
+                    <code>contentCleaner.js</code> strips HTML tags, tracking pixels, promotional boilerplates, and ads. The <strong>PowerFilter</strong> checks whether the text matches core power sector taxonomies (generation, transmission, distribution, tariffs, DISCOMs). If an article is about general politics, celebrity news, or general finance, it is immediately discarded before touching the AI.
+                  </p>
+                </div>
+
+                <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
+                  <div class="font-bold text-purple-800 flex items-center mb-1">
+                    <span class="w-2 h-2 rounded-full bg-purple-600 mr-2"></span> C. AI Summarization with 60-Word Constraint
+                  </div>
+                  <p class="text-slate-600">
+                    Articles pass to Google Gemini 2.5 Flash. The system prompt instructs: <em>"Write a factual, concise 60-word executive briefing for power engineers. Focus on MW capacity, investment (Rs. Cr), tariffs, and discom impact. Do not use bullet points or marketing fluff."</em>
+                  </p>
+                </div>
+
+                <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
+                  <div class="font-bold text-emerald-800 flex items-center mb-1">
+                    <span class="w-2 h-2 rounded-full bg-emerald-600 mr-2"></span> D. Strict Database Storage (Cloud Firestore)
+                  </div>
+                  <p class="text-slate-600">
+                    Only summaries meeting strict criteria (length &ge; 75 chars, non-bullet narrative, not identical to title) are written to Cloud Firestore in <code>ai_summaries</code> with 14 indexed fields. If storage approaches 850 MB, our automated cron gracefully purges the oldest 30+ day records.
+                  </p>
+                </div>
+
+                <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
+                  <div class="font-bold text-amber-800 flex items-center mb-1">
+                    <span class="w-2 h-2 rounded-full bg-amber-600 mr-2"></span> E. Dual-Layer Flutter Display (Offline SQLite + REST Sync)
+                  </div>
+                  <p class="text-slate-600">
+                    The mobile app uses a dual-engine architecture:
+                    <br>1. <strong>Local SQLite (<code>powernews_offline.db</code>):</strong> Boots in 0ms with instant offline reading, category filters, and bookmarking.
+                    <br>2. <strong>REST API Sync (<code>/api/news</code>):</strong> Seamlessly pulls the freshest 7-day articles in the background and writes them into SQLite without blocking UI thread.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Section 2: Step-by-Step Guide for Power60 ML Training -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+              <div class="flex items-center space-x-3 mb-4">
+                <span class="p-2 bg-purple-100 text-purple-700 rounded-lg font-bold">2</span>
+                <div>
+                  <h3 class="font-bold text-lg text-slate-900">Step-by-Step: Creating the Power60 Custom Model</h3>
+                  <p class="text-xs text-slate-500">How to use our 1,277+ approved Firestore summaries to train an open-source model & eliminate API costs.</p>
+                </div>
+              </div>
+
+              <div class="space-y-4 text-xs sm:text-sm text-slate-700">
+                <div class="border-l-2 border-purple-600 pl-4 py-1">
+                  <div class="font-bold text-slate-900">Step 1: Export Dataset (.jsonl)</div>
+                  <p class="text-slate-600 mt-1">Navigate to the <strong>ML Training</strong> tab and click <em>"Download .jsonl Dataset"</em>. This exports all approved records with full original text as <code>user</code> input and the 60-word executive summary as <code>model</code> output.</p>
+                </div>
+
+                <div class="border-l-2 border-purple-600 pl-4 py-1">
+                  <div class="font-bold text-slate-900">Step 2: Fine-Tune an Open Model (Llama-3-8B or Mistral-7B)</div>
+                  <p class="text-slate-600 mt-1">
+                    Upload the <code>power60_dataset.jsonl</code> to Google Colab or Kaggle (free T4 GPU). Using <strong>Unsloth</strong> or <strong>HuggingFace PEFT (QLoRA)</strong>, fine-tune for 3 epochs with a learning rate of 2e-4. The model learns our exact Indian power domain taxonomy, vocabulary, and 60-word concise structure.
+                  </p>
+                </div>
+
+                <div class="border-l-2 border-purple-600 pl-4 py-1">
+                  <div class="font-bold text-slate-900">Step 3: Quantize & Deploy for Zero Ongoing Cost</div>
+                  <p class="text-slate-600 mt-1">
+                    Convert the trained weights to GGUF format (Q4_K_M). Deploy on a private VPS or container via <strong>Ollama</strong> or <strong>vLLM</strong>. The server can then switch summarization from Gemini to the local Power60 engine, achieving <strong>$0 monthly API bills</strong> and total immunity from rate limits.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Section 3: Flaws in Current System & Way Ahead -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+              <div class="flex items-center space-x-3 mb-4">
+                <span class="p-2 bg-red-100 text-red-700 rounded-lg font-bold">3</span>
+                <div>
+                  <h3 class="font-bold text-lg text-slate-900">Current Flaws & The Way Ahead</h3>
+                  <p class="text-xs text-slate-500">Critical architectural bottlenecks and our concrete roadmap for improvements.</p>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs sm:text-sm">
+                <!-- Flaws -->
+                <div class="p-4 bg-red-50/60 rounded-xl border border-red-200">
+                  <div class="font-bold text-red-900 flex items-center mb-2">
+                    <svg class="w-4 h-4 mr-1 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                    Current System Bottlenecks
+                  </div>
+                  <ul class="space-y-2 text-red-800 list-disc pl-4">
+                    <li><strong>Render Free-Tier Sleep:</strong> Node server sleeps after 15 mins of inactivity, leading to a 30-50s cold boot on first app open.</li>
+                    <li><strong>Gemini Quota Risk:</strong> Spikes in breaking news can exceed free rate limits (15 RPM), causing unsummarized delays.</li>
+                    <li><strong>Exact String Keyword Matching:</strong> Keyword system relies on substring matching rather than semantic embeddings, occasionally missing synonyms.</li>
+                    <li><strong>Wire Reprints:</strong> Same PTI/ANI story published on 4 different websites can produce duplicate cards if titles vary slightly.</li>
+                  </ul>
+                </div>
+
+                <!-- Way Ahead -->
+                <div class="p-4 bg-emerald-50/60 rounded-xl border border-emerald-200">
+                  <div class="font-bold text-emerald-900 flex items-center mb-2">
+                    <svg class="w-4 h-4 mr-1 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    The Way Ahead (Improvements)
+                  </div>
+                  <ul class="space-y-2 text-emerald-800 list-disc pl-4">
+                    <li><strong>Semantic Deduplication (Vectors):</strong> Embed headlines with lightweight embeddings and cluster by cosine similarity (&gt;0.88) to group syndicated news into one master event card.</li>
+                    <li><strong>Self-Hosted Power60 LLM:</strong> Fine-tune and deploy custom 8B model to eliminate Gemini API costs and latency.</li>
+                    <li><strong>Async Job Queue (BullMQ / Redis):</strong> Decouple ingestion into background workers to keep web requests instantaneous.</li>
+                    <li><strong>FCM Push Notifications:</strong> Automatically push breaking CERC regulatory orders or major grid events directly to mobile users.</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Right Column: Mathematical Formulation & Other Data Uses (1 Col) -->
+          <div class="space-y-6">
+            
+            <!-- Mathematical Formulation of PowerScore -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+              <h4 class="font-bold text-slate-900 text-base mb-3 flex items-center">
+                <span class="mr-2">📐</span> PowerScore Mathematical Formula
+              </h4>
+              <div class="p-3 bg-slate-900 text-amber-300 font-mono text-xs rounded-xl overflow-x-auto leading-relaxed mb-3">
+                Score = (Base + (KW × 50) + SrcWeight - ClumpPen) / (AgeInHours + 2)^1.5
+              </div>
+              <ul class="text-xs text-slate-600 space-y-2 leading-relaxed">
+                <li><strong>Base (100 pts):</strong> Starting baseline for all verified news.</li>
+                <li><strong>KW × 50:</strong> Each active keyword entity found in title/summary adds +50 points.</li>
+                <li><strong>SrcWeight (+80 / -20):</strong> Reputable niche journals (e.g. PowerLine) receive +80; high-volume bulk feeds receive -20 to prevent saturation.</li>
+                <li><strong>Solar Penalty (-30):</strong> Generic solar news penalized in default feed to allow transmission, SCADA, and OEM news to surface.</li>
+                <li><strong>Anti-Clumping Rule:</strong> Solar/renewable stories are capped at a maximum of 2 consecutive cards; third is automatically swapped with next non-solar article.</li>
+              </ul>
+            </div>
+
+            <!-- Other B2B Commercial Applications of Collected Data -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+              <h4 class="font-bold text-slate-900 text-base mb-3 flex items-center">
+                <span class="mr-2">💼</span> Commercial & B2B Data Uses
+              </h4>
+              <div class="space-y-3 text-xs text-slate-700">
+                <div class="p-3 bg-blue-50/70 rounded-lg border border-blue-200">
+                  <div class="font-bold text-blue-950">1. State DISCOM Health Tracker</div>
+                  <p class="text-slate-600 mt-0.5">Aggregate AT&C losses, smart meter tenders, and tariff revisions state-by-state to create an enterprise intelligence dashboard for EPC contractors.</p>
+                </div>
+                <div class="p-3 bg-indigo-50/70 rounded-lg border border-indigo-200">
+                  <div class="font-bold text-indigo-950">2. CERC / SERC Regulatory Alert Feed</div>
+                  <p class="text-slate-600 mt-0.5">Automated AI briefing on regulatory tariff orders and grid code amendments delivered daily via WhatsApp or email to power trading desks.</p>
+                </div>
+                <div class="p-3 bg-purple-50/70 rounded-lg border border-purple-200">
+                  <div class="font-bold text-purple-950">3. Power Sector RAG & Q&A Assistant</div>
+                  <p class="text-slate-600 mt-0.5">Use vector embeddings on the 1,277+ indexed full-text articles to answer complex queries (e.g., <em>"What is the average tariff awarded in SECI solar-wind hybrid tenders in 2025?"</em>).</p>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ================================================================= -->
+      <!-- TAB 4: ML TRAINING DATA REVIEW                                   -->
+      <!-- ================================================================= -->
+      <div id="view-ml-data" class="view-panel hidden">
+        <!-- Purpose Card -->
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 mb-6">
+          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+            <div>
+              <div class="flex items-center space-x-2">
+                <span class="px-2 py-0.5 bg-purple-100 text-purple-800 rounded text-xs font-bold uppercase tracking-wider">🤖 Ground Truth Dataset</span>
+                <span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded text-xs font-semibold">Fine-Tuning Ready</span>
+              </div>
+              <h2 class="text-xl sm:text-2xl font-bold text-slate-900 mt-1">ML Training Dataset Curation</h2>
+              <p class="text-slate-600 text-xs sm:text-sm mt-1 max-w-3xl">
+                <strong>Purpose of this screen:</strong> Review, approve, or reject paired training records (Original Text &rarr; Gemini Summary). Approved records are formatted into <code>.jsonl</code> format for fine-tuning our specialized Power60 model.
+              </p>
+            </div>
+            <div class="flex space-x-2 shrink-0">
+              <button onclick="loadTrainingData()" class="bg-white border border-slate-300 px-3.5 py-2 rounded-xl shadow-xs hover:bg-slate-50 text-xs font-semibold">Refresh</button>
+              <button onclick="downloadDataset()" class="bg-purple-600 text-white px-4 py-2 rounded-xl shadow-xs hover:bg-purple-700 text-xs font-semibold flex items-center transition-all">
+                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                Download .jsonl Dataset
+              </button>
+            </div>
+          </div>
+        </div>
+        
+        <div id="mlDataLoading" class="hidden text-center py-10">
+          <div class="animate-spin inline-block w-8 h-8 border-[3px] border-blue-600 border-t-transparent rounded-full" role="status"></div>
+          <p class="text-slate-500 mt-2 text-xs font-medium">Loading training dataset records...</p>
+        </div>
+        
+        <div id="mlDataContainer" class="space-y-4"></div>
+      </div>
+
+      <!-- ================================================================= -->
+      <!-- TAB 5: SYSTEM HEALTH & LIFECYCLE                                 -->
+      <!-- ================================================================= -->
       <div id="view-health" class="view-panel hidden">
-        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
-          <h2 class="text-2xl font-bold mb-4 sm:mb-0">System Health</h2>
-          <div class="flex space-x-2 bg-gray-200 p-1 rounded-lg">
-            <button id="btn-health-ui" onclick="toggleHealthView('ui')" class="px-4 py-1 text-sm font-medium rounded-md bg-white shadow-sm text-gray-900">UI View</button>
-            <button id="btn-health-json" onclick="toggleHealthView('json')" class="px-4 py-1 text-sm font-medium rounded-md text-gray-700 hover:bg-gray-300">JSON View</button>
+        <!-- Purpose Card -->
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 mb-6">
+          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+            <div>
+              <div class="flex items-center space-x-2">
+                <span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded text-xs font-bold uppercase tracking-wider">🩺 Cloud Telemetry</span>
+                <span class="px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-xs font-semibold">Render Node Monitoring</span>
+              </div>
+              <h2 class="text-xl sm:text-2xl font-bold text-slate-900 mt-1">System Health & Lifecycle Diagnostics</h2>
+              <p class="text-slate-600 text-xs sm:text-sm mt-1 max-w-3xl">
+                <strong>Purpose of this screen:</strong> Real-time server telemetry tracking process uptime, memory footprint, article index count, and Firestore database sync status to monitor Render container performance.
+              </p>
+            </div>
+            <div class="flex space-x-2 bg-slate-100 p-1 rounded-xl shrink-0">
+              <button id="btn-health-ui" onclick="toggleHealthView('ui')" class="px-3.5 py-1 text-xs font-semibold rounded-lg bg-white shadow-xs text-slate-900">UI View</button>
+              <button id="btn-health-json" onclick="toggleHealthView('json')" class="px-3.5 py-1 text-xs font-semibold rounded-lg text-slate-600 hover:bg-slate-200">JSON View</button>
+            </div>
           </div>
         </div>
         
         <div id="healthLoading" class="hidden text-center py-10">
-          <div class="animate-spin inline-block w-8 h-8 border-[3px] border-current border-t-transparent text-blue-600 rounded-full" role="status"></div>
+          <div class="animate-spin inline-block w-8 h-8 border-[3px] border-blue-600 border-t-transparent rounded-full" role="status"></div>
         </div>
 
         <!-- UI View -->
         <div id="health-ui-view" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
-            <div class="text-xs font-bold text-gray-500 uppercase">Uptime</div>
-            <div class="text-2xl font-bold text-gray-900 mt-1" id="ui-uptime">--</div>
-            <div class="text-sm text-gray-500 mt-1" id="ui-started">--</div>
+          <div class="bg-white p-5 rounded-2xl shadow-xs border border-slate-200">
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider">Uptime</div>
+            <div class="text-2xl font-bold text-slate-900 mt-1" id="ui-uptime">--</div>
+            <div class="text-xs text-slate-500 mt-1" id="ui-started">--</div>
           </div>
-          <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
-            <div class="text-xs font-bold text-gray-500 uppercase">Articles Indexed</div>
-            <div class="text-2xl font-bold text-gray-900 mt-1" id="ui-articles">--</div>
+          <div class="bg-white p-5 rounded-2xl shadow-xs border border-slate-200">
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider">Live Flutter Pool</div>
+            <div class="text-2xl font-bold text-blue-700 mt-1" id="ui-articles">--</div>
+            <div class="text-xs text-slate-500 mt-1">Vetted & active on mobile</div>
           </div>
-          <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
-            <div class="text-xs font-bold text-gray-500 uppercase">AI Summaries</div>
-            <div class="text-2xl font-bold text-gray-900 mt-1" id="ui-summaries">--</div>
+          <div class="bg-white p-5 rounded-2xl shadow-xs border border-slate-200">
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider">Total AI Summaries</div>
+            <div class="text-2xl font-bold text-emerald-700 mt-1" id="ui-summaries">--</div>
+            <div class="text-xs text-slate-500 mt-1">Indexed in RAM & Firestore</div>
           </div>
-          <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
-            <div class="text-xs font-bold text-gray-500 uppercase">Memory (RSS)</div>
-            <div class="text-2xl font-bold text-gray-900 mt-1" id="ui-memory">--</div>
-            <div class="text-sm text-gray-500 mt-1" id="ui-heap">--</div>
+          <div class="bg-white p-5 rounded-2xl shadow-xs border border-slate-200">
+            <div class="text-xs font-bold text-slate-500 uppercase tracking-wider">Memory (RSS / Heap)</div>
+            <div class="text-2xl font-bold text-slate-900 mt-1" id="ui-memory">--</div>
+            <div class="text-xs text-slate-500 mt-1" id="ui-heap">--</div>
           </div>
         </div>
 
         <!-- Raw JSON View -->
         <div id="health-json-view" class="hidden">
-          <pre id="healthData" class="bg-gray-900 text-green-400 p-6 rounded-lg shadow-inner overflow-x-auto text-sm font-mono"></pre>
+          <pre id="healthData" class="bg-slate-900 text-emerald-400 p-6 rounded-2xl shadow-inner overflow-x-auto text-xs font-mono"></pre>
         </div>
       </div>
 
@@ -165,9 +540,10 @@
     firebase.initializeApp(firebaseConfig);
     const auth = firebase.auth();
     let authToken = '';
+    let liveFlutterArticles = [];
 
     auth.onAuthStateChanged(async (user) => {
-      // Dismiss initial splash loader once Firebase determines auth state
+      // Dismiss splash loader once Firebase determines auth state
       const loader = document.getElementById('appLoadingScreen');
       if (loader) loader.classList.add('hidden');
 
@@ -182,7 +558,7 @@
         authToken = await user.getIdToken();
         document.getElementById('loginScreen').classList.add('hidden');
         document.getElementById('dashboardScreen').classList.remove('hidden');
-        loadTrainingData();
+        switchTab('flutter-feed');
       } else {
         authToken = '';
         document.getElementById('dashboardScreen').classList.add('hidden');
@@ -221,39 +597,40 @@
       auth.signOut();
     }
 
+    // Zero-Layout-Shift Tab Switcher
     function switchTab(tabId) {
       document.querySelectorAll('.view-panel').forEach(p => p.classList.add('hidden'));
-      document.getElementById('view-' + tabId).classList.remove('hidden');
+      const activeView = document.getElementById('view-' + tabId);
+      if (activeView) activeView.classList.remove('hidden');
       
+      // Reset all tab buttons to neutral inactive classes
       document.querySelectorAll('.tab-btn').forEach(b => {
-        b.classList.remove('bg-blue-900', 'ring-white');
-        b.classList.add('ring-transparent');
+        b.className = 'tab-btn shrink-0 whitespace-nowrap h-9 px-3 sm:px-3.5 flex items-center justify-center rounded-lg text-xs sm:text-sm font-semibold border border-transparent text-blue-100 hover:bg-blue-800/70 hover:text-white transition-all duration-150';
       });
       
+      // Set active tab button to high-contrast active state
       const activeBtn = document.getElementById('tab-' + tabId);
-      activeBtn.classList.remove('ring-transparent');
-      activeBtn.classList.add('bg-blue-900', 'ring-white');
+      if (activeBtn) {
+        activeBtn.className = 'tab-btn shrink-0 whitespace-nowrap h-9 px-3 sm:px-3.5 flex items-center justify-center rounded-lg text-xs sm:text-sm font-semibold border transition-all duration-150 bg-blue-950 text-white border-blue-600 shadow-sm';
+      }
 
-      if (tabId === 'ml-data') loadTrainingData();
+      if (tabId === 'flutter-feed') loadFlutterFeed();
       if (tabId === 'keywords') loadKeywords();
+      if (tabId === 'ml-data') loadTrainingData();
       if (tabId === 'health') loadHealth();
     }
 
     function toggleHealthView(view) {
-      if(view === 'ui') {
+      if (view === 'ui') {
         document.getElementById('health-ui-view').classList.remove('hidden');
         document.getElementById('health-json-view').classList.add('hidden');
-        document.getElementById('btn-health-ui').classList.add('bg-white', 'shadow-sm', 'text-gray-900');
-        document.getElementById('btn-health-ui').classList.remove('hover:bg-gray-300', 'text-gray-700');
-        document.getElementById('btn-health-json').classList.remove('bg-white', 'shadow-sm', 'text-gray-900');
-        document.getElementById('btn-health-json').classList.add('hover:bg-gray-300', 'text-gray-700');
+        document.getElementById('btn-health-ui').className = 'px-3.5 py-1 text-xs font-semibold rounded-lg bg-white shadow-xs text-slate-900';
+        document.getElementById('btn-health-json').className = 'px-3.5 py-1 text-xs font-semibold rounded-lg text-slate-600 hover:bg-slate-200';
       } else {
         document.getElementById('health-ui-view').classList.add('hidden');
         document.getElementById('health-json-view').classList.remove('hidden');
-        document.getElementById('btn-health-json').classList.add('bg-white', 'shadow-sm', 'text-gray-900');
-        document.getElementById('btn-health-json').classList.remove('hover:bg-gray-300', 'text-gray-700');
-        document.getElementById('btn-health-ui').classList.remove('bg-white', 'shadow-sm', 'text-gray-900');
-        document.getElementById('btn-health-ui').classList.add('hover:bg-gray-300', 'text-gray-700');
+        document.getElementById('btn-health-json').className = 'px-3.5 py-1 text-xs font-semibold rounded-lg bg-white shadow-xs text-slate-900';
+        document.getElementById('btn-health-ui').className = 'px-3.5 py-1 text-xs font-semibold rounded-lg text-slate-600 hover:bg-slate-200';
       }
     }
 
@@ -264,6 +641,7 @@
       const url = `/api${endpoint}`;
       const headers = { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' };
       const response = await fetch(url, { ...options, headers });
+      
       if (response.status === 401 || response.status === 403) {
         let errMsg = `Server rejected request (${response.status})`;
         try {
@@ -274,74 +652,115 @@
         logout();
         throw new Error(errMsg);
       }
-      return response.json();
+      
+      const data = await response.json();
+      return { ok: response.ok, status: response.status, data };
     }
 
-    // --- ML Data Logic ---
-    async function downloadDataset() {
-      if (!authToken) {
-        if (auth.currentUser) authToken = await auth.currentUser.getIdToken();
-      }
-      window.open(`/api/admin/export-dataset?key=${encodeURIComponent('Bearer ' + authToken)}`, '_blank');
-    }
-
-    async function loadTrainingData() {
-      document.getElementById('mlDataLoading').classList.remove('hidden');
+    // =========================================================================
+    // FLUTTER FEED LOGIC
+    // =========================================================================
+    async function loadFlutterFeed() {
+      document.getElementById('flutterFeedLoading').classList.remove('hidden');
       try {
-        const res = await apiCall('/admin/training-data?limit=20');
-        if (res.data && res.data.length > 0) renderMlData(res.data);
-        else document.getElementById('mlDataContainer').innerHTML = '<p class="text-gray-500">No V2 training data found yet.</p>';
-      } catch (e) {}
-      document.getElementById('mlDataLoading').classList.add('hidden');
+        const res = await apiCall('/admin/flutter-feed');
+        if (res.ok && res.data.articles) {
+          liveFlutterArticles = res.data.articles;
+          document.getElementById('flutterFeedCount').textContent = res.data.total || liveFlutterArticles.length;
+          renderFlutterArticles(liveFlutterArticles);
+        } else {
+          // Fallback to /news
+          const newsRes = await apiCall('/news?limit=50');
+          if (newsRes.ok && newsRes.data.articles) {
+            liveFlutterArticles = newsRes.data.articles;
+            document.getElementById('flutterFeedCount').textContent = newsRes.data.total || liveFlutterArticles.length;
+            renderFlutterArticles(liveFlutterArticles);
+          }
+        }
+      } catch (e) {
+        console.error('Failed to load Flutter Feed:', e);
+      }
+      document.getElementById('flutterFeedLoading').classList.add('hidden');
     }
 
-    function renderMlData(items) {
-      document.getElementById('mlDataContainer').innerHTML = items.map(item => `
-        <div class="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-200">
-          <div class="flex flex-col sm:flex-row justify-between items-start mb-4">
-            <div class="mb-2 sm:mb-0">
-              <h3 class="text-lg sm:text-xl font-bold text-gray-900 mb-1">${item.title}</h3>
-              <div class="text-xs sm:text-sm text-gray-500">
-                <span class="font-semibold text-blue-600">${item.publisher}</span> · 
-                Score: <span class="font-mono bg-gray-100 px-1 rounded">${item.calculatedScore}</span> · 
-                ${new Date(item.createdAt).toLocaleString()}
+    function renderFlutterArticles(articles) {
+      const container = document.getElementById('flutterFeedContainer');
+      if (!articles || articles.length === 0) {
+        container.innerHTML = '<p class="text-slate-500 text-center py-10">No active Flutter articles found.</p>';
+        return;
+      }
+
+      container.innerHTML = articles.map((article, idx) => {
+        const wordCount = (article.summary || '').trim().split(/\s+/).filter(Boolean).length;
+        const score = article._calculatedScore ? article._calculatedScore.toFixed(1) : 'N/A';
+        const pubDate = article.publishedAt ? new Date(article.publishedAt).toLocaleString() : 'Recent';
+        const cats = (article.categories || []).map(c => `<span class="px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded text-xs uppercase font-bold">${c}</span>`).join(' ');
+
+        return `
+          <div class="bg-white p-5 rounded-2xl shadow-xs border border-slate-200 hover:border-blue-300 transition-all">
+            <div class="flex flex-col sm:flex-row justify-between items-start gap-2 mb-2">
+              <div class="flex-grow">
+                <div class="flex items-center space-x-2 mb-1 flex-wrap gap-y-1">
+                  <span class="px-2 py-0.5 bg-slate-900 text-white rounded text-xs font-bold">${article.source || 'PowerNews'}</span>
+                  ${cats}
+                  ${article.state ? `<span class="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-xs">${article.state}</span>` : ''}
+                  ${article.discom ? `<span class="px-2 py-0.5 bg-purple-50 text-purple-700 border border-purple-200 rounded text-xs font-semibold">${article.discom}</span>` : ''}
+                  <span class="px-2 py-0.5 bg-amber-50 text-amber-800 border border-amber-200 rounded text-xs font-mono font-bold">⚡ Score: ${score}</span>
+                </div>
+                <h3 class="text-base sm:text-lg font-bold text-slate-900 leading-snug">
+                  <a href="${article.url}" target="_blank" class="hover:text-blue-600 transition-colors">${article.title} &rarr;</a>
+                </h3>
+              </div>
+              <div class="shrink-0 flex items-center space-x-1.5 self-start">
+                <span class="px-2.5 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-full text-xs font-bold flex items-center">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5"></span> Live on Mobile
+                </span>
               </div>
             </div>
-            <span class="px-3 py-1 rounded-full text-xs font-bold uppercase ${
-              item.mlStatus === 'approved' ? 'bg-green-100 text-green-800' :
-              item.mlStatus === 'rejected' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'
-            }" id="badge-${item.id}">${item.mlStatus}</span>
-          </div>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-4">
-            <div class="bg-gray-50 p-4 rounded border h-32 overflow-y-auto text-sm">${item.originalText}</div>
-            <div class="bg-blue-50 p-4 rounded border h-32 overflow-y-auto text-sm">${item.geminiSummary || ''}</div>
-          </div>
-          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-t pt-4">
-            <div class="text-xs sm:text-sm text-gray-500 mb-2 sm:mb-0">Entities: ${(item.matchedEntities||[]).join(', ')}</div>
-            <div class="space-x-2 flex w-full sm:w-auto">
-              <button onclick="updateStatus('${item.id}', 'rejected')" class="flex-1 sm:flex-none px-4 py-2 sm:py-1 border border-red-200 text-red-600 rounded hover:bg-red-50 text-sm">Reject</button>
-              <button onclick="updateStatus('${item.id}', 'approved')" class="flex-1 sm:flex-none px-4 py-2 sm:py-1 bg-green-600 text-white rounded hover:bg-green-700 text-sm">Approve</button>
+
+            <div class="bg-slate-50 p-3.5 rounded-xl text-xs sm:text-sm text-slate-700 leading-relaxed border border-slate-200 mb-3">
+              <span class="font-bold text-blue-900 uppercase text-xs tracking-wider block mb-1">Gemini AI Executive Briefing:</span>
+              ${article.summary}
+            </div>
+
+            <div class="flex flex-wrap items-center justify-between text-xs text-slate-500 gap-2 border-t border-slate-100 pt-2.5">
+              <div class="flex items-center space-x-3">
+                <span>⏱ Published: <strong>${pubDate}</strong></span>
+                <span>📝 Word Count: <strong>${wordCount} words</strong></span>
+              </div>
+              <a href="${article.url}" target="_blank" class="text-blue-600 hover:text-blue-800 font-semibold flex items-center">
+                Original Publisher Source &rarr;
+              </a>
             </div>
           </div>
-        </div>
-      `).join('');
+        `;
+      }).join('');
     }
 
-    async function updateStatus(id, status) {
-      try {
-        await apiCall(`/admin/training-data/${id}/status`, { method: 'POST', body: JSON.stringify({ status }) });
-        const badge = document.getElementById(`badge-${id}`);
-        badge.textContent = status;
-        badge.className = `px-3 py-1 rounded-full text-xs font-bold uppercase ${status === 'approved' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`;
-      } catch (e) {}
+    function filterFlutterArticles() {
+      const q = (document.getElementById('flutterFeedFilter').value || '').toLowerCase().trim();
+      if (!q) {
+        renderFlutterArticles(liveFlutterArticles);
+        return;
+      }
+      const filtered = liveFlutterArticles.filter(a => 
+        (a.title && a.title.toLowerCase().includes(q)) ||
+        (a.summary && a.summary.toLowerCase().includes(q)) ||
+        (a.source && a.source.toLowerCase().includes(q)) ||
+        (a.state && a.state.toLowerCase().includes(q)) ||
+        (a.discom && a.discom.toLowerCase().includes(q))
+      );
+      renderFlutterArticles(filtered);
     }
 
-    // --- Keywords Automation ---
+    // =========================================================================
+    // KEYWORDS LOGIC WITH DUPLICATE DETECTION
+    // =========================================================================
     async function loadKeywords() {
       try {
         const res = await apiCall('/admin/keywords');
-        if (res.success) {
-          renderKeywords(res.baseKeywords || [], res.dynamicKeywords || []);
+        if (res.ok && res.data.success) {
+          renderKeywords(res.data.baseKeywords || [], res.data.dynamicKeywords || []);
         }
       } catch (e) {}
     }
@@ -354,16 +773,50 @@
 
       let html = '';
       baseKeywords.forEach(k => {
-        html += `<span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-800 border border-gray-200" title="Foundational Base Keyword">${k}</span>`;
+        html += `<span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-800 border border-slate-200" title="Foundational Base Keyword">${k}</span>`;
       });
       dynamicKeywords.forEach(k => {
         const enc = encodeURIComponent(k);
-        html += `<span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-200 shadow-sm" title="Dynamic / Auto-discovered Keyword">
+        html += `<span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-200 shadow-xs" title="Dynamic / Auto-discovered Keyword">
           <span class="mr-1">⚡ ${k}</span>
           <button onclick="deleteKeyword('${enc}')" class="ml-1 text-blue-500 hover:text-red-600 font-bold text-sm leading-none focus:outline-none" title="Remove keyword">&times;</button>
         </span>`;
       });
-      container.innerHTML = html || '<p class="text-gray-500 text-sm">No keywords active.</p>';
+      container.innerHTML = html || '<p class="text-slate-500 text-xs">No keywords active.</p>';
+    }
+
+    async function addCustomKeyword() {
+      const input = document.getElementById('newKeywordInput');
+      const feedback = document.getElementById('keywordActionFeedback');
+      const text = document.getElementById('keywordFeedbackText');
+      const val = (input.value || '').trim();
+      
+      if (!val) return;
+
+      try {
+        const res = await apiCall('/admin/keywords/add', {
+          method: 'POST',
+          body: JSON.stringify({ keyword: val })
+        });
+
+        feedback.classList.remove('hidden');
+
+        if (res.ok && res.data.success) {
+          feedback.className = 'mt-3 p-3 rounded-xl text-xs font-semibold flex items-center justify-between bg-emerald-50 text-emerald-800 border border-emerald-200';
+          text.textContent = `✅ Successfully added "${val}"! Saved to Cloud Firestore and activated for +50 score boost.`;
+          input.value = '';
+          loadKeywords();
+        } else {
+          // Duplicate or invalid keyword
+          const reason = res.data ? res.data.message : 'Keyword already exists or is invalid.';
+          feedback.className = 'mt-3 p-3 rounded-xl text-xs font-semibold flex items-center justify-between bg-amber-50 text-amber-800 border border-amber-200';
+          text.textContent = `⚠️ ${reason}`;
+        }
+      } catch (e) {
+        feedback.classList.remove('hidden');
+        feedback.className = 'mt-3 p-3 rounded-xl text-xs font-semibold flex items-center justify-between bg-red-50 text-red-800 border border-red-200';
+        text.textContent = `❌ Request failed: ${e.message}`;
+      }
     }
 
     async function autoDiscoverKeywords() {
@@ -372,40 +825,26 @@
       banner.classList.add('hidden');
       try {
         const res = await apiCall('/admin/keywords/auto-discover', { method: 'POST' });
-        if (res.success) {
-          banner.className = 'mb-6 p-4 rounded-lg text-sm font-medium bg-green-50 text-green-800 border border-green-200';
-          if (res.newlyAdded && res.newlyAdded.length > 0) {
-            banner.textContent = `🎯 Auto-discovered & added ${res.newlyAdded.length} new keywords to database: ${res.newlyAdded.join(', ')}`;
+        if (res.ok && res.data.success) {
+          banner.className = 'mb-6 p-4 rounded-xl text-xs sm:text-sm font-medium bg-emerald-50 text-emerald-800 border border-emerald-200';
+          if (res.data.newlyAdded && res.data.newlyAdded.length > 0) {
+            banner.textContent = `🎯 Auto-discovered & added ${res.data.newlyAdded.length} new keywords to database: ${res.data.newlyAdded.join(', ')}`;
           } else {
-            banner.textContent = `✅ Gemini analyzed recent news against existing keywords. All emerging entities are already captured!`;
+            banner.textContent = `✅ Gemini analyzed recent power news against active dictionary. All emerging entities are already captured in database!`;
           }
           banner.classList.remove('hidden');
           loadKeywords();
         } else {
-          banner.className = 'mb-6 p-4 rounded-lg text-sm font-medium bg-red-50 text-red-800 border border-red-200';
-          banner.textContent = `❌ Auto-discovery notice: ${res.error || 'No new keywords returned'}`;
+          banner.className = 'mb-6 p-4 rounded-xl text-xs sm:text-sm font-medium bg-red-50 text-red-800 border border-red-200';
+          banner.textContent = `❌ Auto-discovery notice: ${res.data ? res.data.error : 'No new keywords returned'}`;
           banner.classList.remove('hidden');
         }
       } catch (e) {
-        banner.className = 'mb-6 p-4 rounded-lg text-sm font-medium bg-red-50 text-red-800 border border-red-200';
-        banner.textContent = '❌ Failed to run auto-discovery.';
+        banner.className = 'mb-6 p-4 rounded-xl text-xs sm:text-sm font-medium bg-red-50 text-red-800 border border-red-200';
+        banner.textContent = '❌ Failed to execute auto-discovery.';
         banner.classList.remove('hidden');
       }
       document.getElementById('keywordsLoading').classList.add('hidden');
-    }
-
-    async function addCustomKeyword() {
-      const input = document.getElementById('newKeywordInput');
-      const val = (input.value || '').trim();
-      if (!val) return;
-      try {
-        await apiCall('/admin/keywords/add', {
-          method: 'POST',
-          body: JSON.stringify({ keyword: val })
-        });
-        input.value = '';
-        loadKeywords();
-      } catch (e) {}
     }
 
     async function deleteKeyword(encodedKeyword) {
@@ -417,10 +856,87 @@
       } catch (e) {}
     }
 
+    // =========================================================================
+    // ML TRAINING DATA LOGIC
+    // =========================================================================
+    async function downloadDataset() {
+      if (!authToken) {
+        if (auth.currentUser) authToken = await auth.currentUser.getIdToken();
+      }
+      window.open(`/api/admin/export-dataset?key=${encodeURIComponent('Bearer ' + authToken)}`, '_blank');
+    }
+
+    async function loadTrainingData() {
+      document.getElementById('mlDataLoading').classList.remove('hidden');
+      try {
+        const res = await apiCall('/admin/training-data?limit=25');
+        if (res.ok && res.data.data && res.data.data.length > 0) {
+          renderMlData(res.data.data);
+        } else {
+          document.getElementById('mlDataContainer').innerHTML = '<p class="text-slate-500 text-center py-8 text-xs">No ML training records found yet.</p>';
+        }
+      } catch (e) {}
+      document.getElementById('mlDataLoading').classList.add('hidden');
+    }
+
+    function renderMlData(items) {
+      document.getElementById('mlDataContainer').innerHTML = items.map(item => `
+        <div class="bg-white p-5 rounded-2xl shadow-xs border border-slate-200">
+          <div class="flex flex-col sm:flex-row justify-between items-start mb-3 gap-2">
+            <div>
+              <h3 class="text-base sm:text-lg font-bold text-slate-900 mb-1">${item.title}</h3>
+              <div class="text-xs text-slate-500">
+                <span class="font-semibold text-blue-600">${item.publisher}</span> · 
+                Score: <span class="font-mono bg-slate-100 px-1.5 py-0.5 rounded font-bold">${item.calculatedScore || 'N/A'}</span> · 
+                ${item.createdAt ? new Date(item.createdAt).toLocaleString() : 'N/A'}
+              </div>
+            </div>
+            <span class="px-3 py-1 rounded-full text-xs font-bold uppercase ${
+              item.mlStatus === 'approved' ? 'bg-emerald-100 text-emerald-800' :
+              item.mlStatus === 'rejected' ? 'bg-red-100 text-red-800' : 'bg-slate-100 text-slate-800'
+            }" id="badge-${item.id}">${item.mlStatus}</span>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-3">
+            <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200 h-32 overflow-y-auto text-xs text-slate-700 leading-relaxed">
+              <span class="font-bold block text-slate-500 uppercase text-[10px] mb-1">Original Text (Crawler Input):</span>
+              ${item.originalText}
+            </div>
+            <div class="bg-blue-50/70 p-3.5 rounded-xl border border-blue-200 h-32 overflow-y-auto text-xs text-slate-800 leading-relaxed">
+              <span class="font-bold block text-blue-900 uppercase text-[10px] mb-1">Gemini AI Executive Summary (Target Output):</span>
+              ${item.geminiSummary || 'No summary available'}
+            </div>
+          </div>
+          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-t border-slate-100 pt-3 gap-2">
+            <div class="text-xs text-slate-500">Entities: <strong>${(item.matchedEntities || []).join(', ') || 'None detected'}</strong></div>
+            <div class="space-x-2 flex w-full sm:w-auto">
+              <button onclick="updateStatus('${item.id}', 'rejected')" class="flex-1 sm:flex-none px-3.5 py-1.5 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 text-xs font-semibold">Reject</button>
+              <button onclick="updateStatus('${item.id}', 'approved')" class="flex-1 sm:flex-none px-3.5 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-xs font-semibold">Approve</button>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function updateStatus(id, status) {
+      try {
+        await apiCall(`/admin/training-data/${id}/status`, { method: 'POST', body: JSON.stringify({ status }) });
+        const badge = document.getElementById(`badge-${id}`);
+        if (badge) {
+          badge.textContent = status;
+          badge.className = `px-3 py-1 rounded-full text-xs font-bold uppercase ${status === 'approved' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`;
+        }
+      } catch (e) {}
+    }
+
+    // =========================================================================
+    // SYSTEM HEALTH LOGIC
+    // =========================================================================
     async function loadHealth() {
       document.getElementById('healthLoading').classList.remove('hidden');
       try {
-        const [health, memory] = await Promise.all([apiCall('/health'), apiCall('/memory')]);
+        const [healthRes, memoryRes] = await Promise.all([apiCall('/health'), apiCall('/memory')]);
+        const health = healthRes.ok ? healthRes.data : {};
+        const memory = memoryRes.ok ? memoryRes.data : {};
         
         // Populate JSON
         const combined = { system: health, memory: memory };
@@ -428,14 +944,13 @@
         
         // Populate UI
         document.getElementById('ui-uptime').textContent = health.uptimeFormatted || 'Online';
-        document.getElementById('ui-started').textContent = 'Since: ' + (health.serverStartedAt || 'Unknown');
+        document.getElementById('ui-started').textContent = 'Started: ' + (health.serverStartedAt || 'Unknown');
         
-        document.getElementById('ui-articles').textContent = (health.rawScrapedArticles || 0) + ' Total';
-        document.getElementById('ui-summaries').textContent = (health.totalAiSummaries || 0) + ' AI Summaries';
+        document.getElementById('ui-articles').textContent = (health.totalArticles || 0) + ' Live';
+        document.getElementById('ui-summaries').textContent = (health.totalAiSummaries || 0) + ' Summaries';
         
         document.getElementById('ui-memory').textContent = memory.rssMb || 'N/A';
         document.getElementById('ui-heap').textContent = 'Heap Used: ' + (memory.heapUsedMb || 'N/A');
-        
       } catch (e) {}
       document.getElementById('healthLoading').classList.add('hidden');
     }

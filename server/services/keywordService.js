@@ -101,20 +101,40 @@ function getActiveKeywords() {
 }
 
 /**
- * Manually adds a new keyword to the system.
+ * Manually adds a new keyword to the system with duplicate validation.
  */
 async function addKeyword(rawKeyword) {
-  if (!rawKeyword || typeof rawKeyword !== 'string') return false;
+  if (!isInitialized) await initKeywords();
+  if (!rawKeyword || typeof rawKeyword !== 'string') {
+    return { success: false, reason: 'invalid', message: 'Valid keyword string is required.' };
+  }
   const kw = rawKeyword.trim().toLowerCase();
-  if (kw.length < 2) return false;
+  if (kw.length < 2) {
+    return { success: false, reason: 'too_short', message: 'Keyword must be at least 2 characters long.' };
+  }
 
   const baseSet = new Set(getBaseKeywords());
-  if (baseSet.has(kw) || dynamicKeywords.has(kw)) return false; // Already present
+  if (baseSet.has(kw)) {
+    return {
+      success: false,
+      reason: 'duplicate',
+      existsIn: 'base',
+      message: `Keyword "${kw}" already exists in foundational base dictionary.`
+    };
+  }
+  if (dynamicKeywords.has(kw)) {
+    return {
+      success: false,
+      reason: 'duplicate',
+      existsIn: 'dynamic',
+      message: `Keyword "${kw}" already exists in the active database.`
+    };
+  }
 
   dynamicKeywords.add(kw);
   await persistKeywords();
   console.log(`[Keyword Service] Added new keyword: "${kw}"`);
-  return true;
+  return { success: true, keyword: kw };
 }
 
 /**

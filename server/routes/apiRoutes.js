@@ -570,16 +570,39 @@ router.post('/admin/keywords/auto-discover', async (req, res) => {
 router.post('/admin/keywords/add', async (req, res) => {
   const { keyword } = req.body;
   if (!keyword || typeof keyword !== 'string') {
-    return res.status(400).json({ error: 'Valid keyword string is required' });
+    return res.status(400).json({ success: false, error: 'Valid keyword string is required' });
   }
-  const added = await keywordService.addKeyword(keyword);
-  res.json({ success: added, activeKeywords: keywordService.getActiveKeywords() });
+  const result = await keywordService.addKeyword(keyword);
+  if (!result.success) {
+    const statusCode = result.reason === 'duplicate' ? 409 : 400;
+    return res.status(statusCode).json({
+      success: false,
+      reason: result.reason,
+      message: result.message,
+      activeKeywords: keywordService.getActiveKeywords()
+    });
+  }
+  res.json({
+    success: true,
+    keyword: result.keyword,
+    activeKeywords: keywordService.getActiveKeywords()
+  });
 });
 
 router.delete('/admin/keywords/:keyword', async (req, res) => {
   const { keyword } = req.params;
   const removed = await keywordService.removeKeyword(keyword);
   res.json({ success: removed, activeKeywords: keywordService.getActiveKeywords() });
+});
+
+// Admin live view of articles currently eligible and served to the Flutter App
+router.get('/admin/flutter-feed', (req, res) => {
+  const active = getActiveArticles();
+  res.json({
+    success: true,
+    total: active.length,
+    articles: active.slice(0, 100)
+  });
 });
 
 // Backward-compatible endpoint (now compares against full active list)
