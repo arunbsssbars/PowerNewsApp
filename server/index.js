@@ -14,10 +14,11 @@ const app = express();
 // Trust Render's reverse proxy for correct rate-limiting IP addresses
 app.set('trust proxy', 1);
 app.use(express.json()); // Need JSON parsing for POST/PUT requests
-app.use('/admin', express.static(path.join(__dirname, '..', 'public', 'admin')));
-app.get('/admin', (req, res) => {
+app.get(['/admin', '/admin/', '/admin/index.html'], (req, res) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
   res.sendFile(path.join(__dirname, '..', 'public', 'admin', 'index.html'));
 });
+app.use('/admin', express.static(path.join(__dirname, '..', 'public', 'admin')));
 
 // Security Headers via Helmet
 app.use(helmet({
