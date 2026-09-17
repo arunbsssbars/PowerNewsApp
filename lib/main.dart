@@ -11,7 +11,11 @@ import 'services/auth_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  await dotenv.load(fileName: ".env");
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (e) {
+    debugPrint('[DotEnv] Notice: .env file could not be loaded ($e). Using default AppConfig.');
+  }
 
   final prefs = await SharedPreferences.getInstance();
   final hasSeenOnboarding = prefs.getBool('has_seen_onboarding') ?? false;
