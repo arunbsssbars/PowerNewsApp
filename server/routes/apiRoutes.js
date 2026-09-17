@@ -88,7 +88,12 @@ async function requireApiKey(req, res, next) {
         if (fs.existsSync(localKeyPath)) serviceAccount = JSON.parse(fs.readFileSync(localKeyPath, 'utf8'));
       }
       
-      if (serviceAccount) initializeApp({ credential: cert(serviceAccount) });
+      if (serviceAccount) {
+        initializeApp({ credential: cert(serviceAccount) });
+      } else {
+        // Fallback for Auth verification: Initialize with just the projectId
+        initializeApp({ projectId: 'powernews-app-2026' });
+      }
     }
 
     const decodedToken = await admin.auth().verifyIdToken(token);
