@@ -5,6 +5,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'providers/news_provider.dart';
 import 'screens/home_screen.dart';
 import 'screens/onboarding_screen.dart';
+import 'screens/login_signup_screen.dart';
 import 'theme/app_theme.dart';
 import 'services/auth_service.dart';
 
@@ -45,6 +46,16 @@ class PowerNewsApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final newsProvider = context.watch<NewsProvider>();
+    final auth = context.watch<AuthService>();
+
+    Widget initialScreen;
+    if (showOnboarding) {
+      initialScreen = const OnboardingScreen();
+    } else if (!auth.isAuthenticated && !auth.isGuest) {
+      initialScreen = const LoginSignUpScreen();
+    } else {
+      initialScreen = const HomeScreen();
+    }
 
     return MaterialApp(
       title: 'PowerNews',
@@ -63,7 +74,7 @@ class PowerNewsApp extends StatelessWidget {
           child: child!,
         );
       },
-      home: showOnboarding ? const OnboardingScreen() : const HomeScreen(),
+      home: initialScreen,
     );
   }
 }

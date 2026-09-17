@@ -11,6 +11,7 @@ class FormattedSummaryView extends StatelessWidget {
   final double fontSize;
   final String? fontFamily;
   final double lineHeight;
+  final bool isScrollable;
 
   const FormattedSummaryView({
     super.key,
@@ -23,6 +24,7 @@ class FormattedSummaryView extends StatelessWidget {
     this.fontSize = 16.5,
     this.fontFamily,
     this.lineHeight = 1.55,
+    this.isScrollable = false,
   });
 
   // Highlights quantitative power sector metrics (MW, GW, kV, Capex, Tariffs, etc.)
@@ -147,48 +149,63 @@ class FormattedSummaryView extends StatelessWidget {
             .trim();
       }).where((l) => l.length > 5).toList();
 
-      return SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: points.map((point) {
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: EdgeInsets.only(top: fontSize * 0.45, right: 10),
-                    child: Container(
-                      width: 6,
-                      height: 6,
-                      decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF2563EB),
-                        shape: BoxShape.circle,
-                        boxShadow: isDark
-                            ? [
-                                BoxShadow(
-                                  color: const Color(0xFF38BDF8).withOpacity(0.5),
-                                  blurRadius: 4,
-                                  spreadRadius: 0.5,
-                                )
-                              ]
-                            : null,
-                      ),
+      final bulletsWidget = Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: points.map((point) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 7),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: EdgeInsets.only(top: fontSize * 0.45, right: 8),
+                  child: Container(
+                    width: 5,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF2563EB),
+                      shape: BoxShape.circle,
+                      boxShadow: isDark
+                          ? [
+                              BoxShadow(
+                                color: const Color(0xFF38BDF8).withOpacity(0.5),
+                                blurRadius: 4,
+                                spreadRadius: 0.5,
+                              )
+                            ]
+                          : null,
                     ),
                   ),
-                  Expanded(
-                    child: Text.rich(
-                      TextSpan(
-                        children: _buildHighlightedSpans(point, baseStyle, highlightStyle),
-                      ),
-                      textAlign: TextAlign.justify,
+                ),
+                Expanded(
+                  child: Text.rich(
+                    TextSpan(
+                      children: _buildHighlightedSpans(point, baseStyle, highlightStyle),
                     ),
+                    textAlign: TextAlign.justify,
                   ),
-                ],
-              ),
-            );
-          }).toList(),
-        ),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+      );
+
+      if (isScrollable) {
+        return SingleChildScrollView(child: bulletsWidget);
+      }
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          return FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.topLeft,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: constraints.maxWidth),
+              child: bulletsWidget,
+            ),
+          );
+        },
       );
     }
 
@@ -200,19 +217,27 @@ class FormattedSummaryView extends StatelessWidget {
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
 
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Narrative Prose with Highlighted Data Metrics (Full width, Justified)
-          Text.rich(
-            TextSpan(
-              children: _buildHighlightedSpans(cleanProse, baseStyle, highlightStyle),
-            ),
-            textAlign: TextAlign.justify,
-          ),
-        ],
+    final proseWidget = Text.rich(
+      TextSpan(
+        children: _buildHighlightedSpans(cleanProse, baseStyle, highlightStyle),
       ),
+      textAlign: TextAlign.justify,
+    );
+
+    if (isScrollable) {
+      return SingleChildScrollView(child: proseWidget);
+    }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.topLeft,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: constraints.maxWidth),
+            child: proseWidget,
+          ),
+        );
+      },
     );
   }
 }

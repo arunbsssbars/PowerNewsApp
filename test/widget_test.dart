@@ -6,6 +6,8 @@ import 'package:power_news_app/main.dart';
 import 'package:power_news_app/providers/news_provider.dart';
 import 'package:power_news_app/services/database_service.dart';
 
+import 'package:power_news_app/services/auth_service.dart';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -19,12 +21,19 @@ void main() {
   });
 
   testWidgets('App smoke and initialization test', (WidgetTester tester) async {
-    SharedPreferences.setMockInitialValues({});
+    SharedPreferences.setMockInitialValues({
+      'has_seen_onboarding': true,
+      'auth_is_guest': true,
+    });
+
+    final authService = AuthService();
+    await authService.init();
 
     await tester.pumpWidget(
       MultiProvider(
         providers: [
           ChangeNotifierProvider(create: (_) => NewsProvider()),
+          ChangeNotifierProvider.value(value: authService),
         ],
         child: const PowerNewsApp(),
       ),

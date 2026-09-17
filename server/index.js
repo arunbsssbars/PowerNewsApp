@@ -20,6 +20,83 @@ app.get(['/admin', '/admin/', '/admin/index.html'], (req, res) => {
 });
 app.use('/admin', express.static(path.join(__dirname, '..', 'public', 'admin')));
 
+app.get('/verify-email', (req, res) => {
+  const oobCode = req.query.oobCode || req.query.code || '';
+  const apiKey = req.query.apiKey || process.env.FIREBASE_API_KEY || 'AIzaSyDmaWHLVYGzfTlFaPmFPsoT5zyojmon60g';
+  res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PowerNews - Verify Email</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 min-h-screen flex items-center justify-center p-4 font-sans text-slate-800">
+  <div class="bg-white max-w-md w-full rounded-3xl p-8 border border-slate-200/80 shadow-sm text-center">
+    <div class="w-14 h-14 mx-auto bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-5 border border-blue-100 shadow-xs">
+      <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+    </div>
+    <h1 class="text-2xl font-bold text-slate-900 tracking-tight">Verify Your Email</h1>
+    <p class="text-xs sm:text-sm text-slate-500 mt-2 mb-6">Confirm your email address to unlock synchronized bookmarks, sector telemetry alerts, and personal preferences on PowerNews.</p>
+    
+    <div id="statusBox" class="hidden mb-6 p-4 rounded-xl text-xs font-semibold"></div>
+
+    <button id="verifyBtn" onclick="submitVerification()" class="w-full py-3.5 px-5 bg-gradient-to-r from-blue-600 to-sky-600 hover:from-blue-700 hover:to-sky-700 text-white font-bold text-sm rounded-xl shadow-xs transition-all duration-150 flex items-center justify-center">
+      <span>Verify Email Address</span>
+    </button>
+
+    <div class="mt-6 text-xs text-slate-400">
+      PowerNews Indian Power Intelligence Platform
+    </div>
+  </div>
+
+  <script>
+    const oobCode = "${oobCode}";
+    const apiKey = "${apiKey}";
+
+    async function submitVerification() {
+      const btn = document.getElementById('verifyBtn');
+      const box = document.getElementById('statusBox');
+      if (!oobCode) {
+        box.className = 'mb-6 p-4 rounded-xl text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200';
+        box.textContent = 'Invalid or expired verification code. Please request a new verification email from the app.';
+        box.classList.remove('hidden');
+        return;
+      }
+      btn.disabled = true;
+      btn.innerHTML = '<span class="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full mr-2"></span> Verifying...';
+      try {
+        const res = await fetch('https://identitytoolkit.googleapis.com/v1/accounts:update?key=' + apiKey, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ oobCode: oobCode })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          box.className = 'mb-6 p-4 rounded-xl text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center justify-center';
+          box.innerHTML = '✅ Email verified successfully! You can return to the PowerNews app.';
+          box.classList.remove('hidden');
+          btn.style.display = 'none';
+        } else {
+          box.className = 'mb-6 p-4 rounded-xl text-xs font-semibold bg-rose-50 text-rose-800 border border-rose-200';
+          box.textContent = data.error && data.error.message ? data.error.message : 'Verification failed or link expired.';
+          box.classList.remove('hidden');
+          btn.disabled = false;
+          btn.textContent = 'Try Again';
+        }
+      } catch (e) {
+        box.className = 'mb-6 p-4 rounded-xl text-xs font-semibold bg-rose-50 text-rose-800 border border-rose-200';
+        box.textContent = 'Network error: ' + e.message;
+        box.classList.remove('hidden');
+        btn.disabled = false;
+        btn.textContent = 'Try Again';
+      }
+    }
+  </script>
+</body>
+</html>`);
+});
+
 // Security Headers via Helmet
 app.use(helmet({
   contentSecurityPolicy: false, // Allows inline CSS styling on the /download landing page
