@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "1022634770385",
+    "project_id": "powernews-app-2026",
+    "storage_bucket": "powernews-app-2026.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1022634770385:android:bbb12d015b9e5ad5ff6af0",
+        "android_client_info": {
+          "package_name": "com.powernews.app.power_news_app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1022634770385-dg25ca062rcleogc5i7bjhcogefmptb9.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.powernews.app.power_news_app",
+            "certificate_hash": "908ee37291ac67802c557bd7f4cf836f3c3fba5e"
+          }
+        },
+        {
+          "client_id": "1022634770385-qfb9nj8e2b1835ss9j4tn9657m34lpil.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDmaWHLVYGzfTlFaPmFPsoT5zyojmon60g"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1022634770385-qfb9nj8e2b1835ss9j4tn9657m34lpil.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

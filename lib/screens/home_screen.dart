@@ -4,12 +4,12 @@ import '../providers/news_provider.dart';
 import 'feed_view.dart';
 import 'dashboard_view.dart';
 import 'bookmarks_view.dart';
+import 'profile_view.dart';
 import 'onboarding_screen.dart';
 import '../widgets/ask_gemini_sheet.dart';
 import '../widgets/about_sheet.dart';
 import '../widgets/notifications_sheet.dart';
 import '../services/auth_service.dart';
-import '../widgets/auth_dialog.dart';
 import 'admin_dashboard_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -66,12 +66,14 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           ? DashboardView(onNavigateTab: (idx) => _onNavigateTab(idx))
           : const SizedBox.shrink(),
       _visitedTabs.contains(2) ? const BookmarksView() : const SizedBox.shrink(),
+      _visitedTabs.contains(3) ? const ProfileView() : const SizedBox.shrink(),
     ];
 
     final titles = [
       'PowerNews',
       'Dashboard',
       'Saved Briefings',
+      'Profile & Account',
     ];
 
     final int bookmarkCount = provider.bookmarks.length;
@@ -79,6 +81,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       'Power Intelligence',
       'Sector & Utilities',
       '$bookmarkCount ${bookmarkCount == 1 ? 'Article' : 'Articles'} Saved',
+      auth.isAuthenticated
+          ? (auth.isAdmin ? '👑 Verified Admin' : (auth.currentUser?.displayName ?? 'Active Account'))
+          : 'Identity & Preferences',
     ];
 
     final safeIndex = currentIndex.clamp(0, pages.length - 1);
@@ -298,60 +303,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
           const SizedBox(width: 6),
 
-          // 4. Account / Admin Button
-          Tooltip(
-            message: auth.isAuthenticated
-                ? (auth.isAdmin ? '👑 Admin (${auth.currentUser!.displayName})' : 'Account (${auth.currentUser!.displayName})')
-                : 'Sign In / Account',
-            child: InkWell(
-              borderRadius: BorderRadius.circular(10),
-              onTap: () {
-                AuthDialog.show(context);
-              },
-              child: Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: auth.isAdmin
-                      ? const Color(0xFF10B981).withOpacity(0.18)
-                      : (isDark ? const Color(0xFF1E293B).withOpacity(0.7) : const Color(0xFFF1F5F9)),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: auth.isAdmin
-                        ? const Color(0xFF10B981)
-                        : (isDark ? const Color(0xFF334155).withOpacity(0.7) : const Color(0xFFE2E8F0)),
-                    width: auth.isAdmin ? 1.5 : 1.0,
-                  ),
-                ),
-                child: Center(
-                  child: auth.currentUser?.photoUrl != null
-                      ? ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Image.network(
-                            auth.currentUser!.photoUrl!,
-                            width: 22,
-                            height: 22,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Icon(
-                              auth.isAdmin ? Icons.shield_rounded : Icons.person_rounded,
-                              size: 18,
-                              color: auth.isAdmin ? const Color(0xFF10B981) : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569)),
-                            ),
-                          ),
-                        )
-                      : Icon(
-                          auth.isAdmin ? Icons.shield_rounded : Icons.person_outline_rounded,
-                          size: 18,
-                          color: auth.isAdmin ? const Color(0xFF10B981) : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569)),
-                        ),
-                ),
-              ),
-            ),
-          ),
-
-          const SizedBox(width: 6),
-
-          // 5. Three Dots Executive Menu (Comfortable 36x36 button, compact 185-215dp dropdown)
+          // 4. Three Dots Executive Menu (Comfortable 36x36 button, compact 185-215dp dropdown)
           Container(
             width: 36,
             height: 36,
@@ -390,7 +342,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                     MaterialPageRoute(builder: (_) => const AdminDashboardScreen()),
                   );
                 } else if (value == 'account') {
-                  AuthDialog.show(context);
+                  _onNavigateTab(3);
                 } else if (value == 'ai_desk') {
                   AskGeminiSheet.show(context);
                 } else if (value == 'guide') {
@@ -509,23 +461,69 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               provider.resetFiltersInMemory();
             }
           }
-          provider.setNavIndex(index);
+          _onNavigateTab(index);
         },
-        destinations: const [
-          NavigationDestination(
+        destinations: [
+          const NavigationDestination(
             icon: Icon(Icons.newspaper_outlined),
             selectedIcon: Icon(Icons.newspaper_rounded, color: Color(0xFF2563EB)),
             label: 'News Feed',
           ),
-          NavigationDestination(
+          const NavigationDestination(
             icon: Icon(Icons.space_dashboard_outlined),
             selectedIcon: Icon(Icons.space_dashboard_rounded, color: Color(0xFF2563EB)),
             label: 'Dashboard',
           ),
-          NavigationDestination(
+          const NavigationDestination(
             icon: Icon(Icons.bookmark_outline_rounded),
             selectedIcon: Icon(Icons.bookmark_rounded, color: Color(0xFF2563EB)),
             label: 'Saved',
+          ),
+          NavigationDestination(
+            icon: auth.isAuthenticated && auth.currentUser?.photoUrl != null
+                ? ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.network(
+                      auth.currentUser!.photoUrl!,
+                      width: 24,
+                      height: 24,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Icon(
+                        auth.isAdmin ? Icons.shield_outlined : Icons.person_outline_rounded,
+                      ),
+                    ),
+                  )
+                : Icon(
+                    auth.isAdmin ? Icons.shield_outlined : Icons.person_outline_rounded,
+                  ),
+            selectedIcon: auth.isAuthenticated && auth.currentUser?.photoUrl != null
+                ? Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: auth.isAdmin ? const Color(0xFF10B981) : const Color(0xFF2563EB),
+                        width: 2,
+                      ),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.network(
+                        auth.currentUser!.photoUrl!,
+                        width: 24,
+                        height: 24,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Icon(
+                          auth.isAdmin ? Icons.shield_rounded : Icons.person_rounded,
+                          color: auth.isAdmin ? const Color(0xFF10B981) : const Color(0xFF2563EB),
+                        ),
+                      ),
+                    ),
+                  )
+                : Icon(
+                    auth.isAdmin ? Icons.shield_rounded : Icons.person_rounded,
+                    color: auth.isAdmin ? const Color(0xFF10B981) : const Color(0xFF2563EB),
+                  ),
+            label: auth.isAdmin ? 'Admin' : 'Profile',
           ),
         ],
       ),
