@@ -16,16 +16,18 @@ app.set('trust proxy', 1);
 app.use(express.json()); // Need JSON parsing for POST/PUT requests
 app.use('/admin', express.static(path.join(__dirname, '..', 'public', 'admin')));
 app.get('/admin', (req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'public', 'admin', 'index.html'));
-});
-app.get('/debug-path', (req, res) => {
-  const fs = require('fs');
-  const targetDir = path.join(__dirname, '..', 'public', 'admin');
-  try {
-    const files = fs.readdirSync(targetDir);
-    res.json({ __dirname, targetDir, files });
-  } catch (err) {
-    res.json({ __dirname, targetDir, error: err.message });
+  const adminPath = path.join(__dirname, '..', 'public', 'admin', 'index.html');
+  if (fs.existsSync(adminPath)) {
+    res.sendFile(adminPath);
+  } else {
+    res.json({
+      error: "Admin file not found on server.",
+      expectedPath: adminPath,
+      __dirname: __dirname,
+      cwd: process.cwd(),
+      rootFiles: fs.readdirSync(path.join(__dirname, '..')),
+      serverFiles: fs.readdirSync(__dirname)
+    });
   }
 });
 
