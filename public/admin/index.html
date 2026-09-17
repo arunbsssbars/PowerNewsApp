@@ -70,21 +70,40 @@
         <div id="mlDataContainer" class="space-y-6"></div>
       </div>
 
-      <!-- Keyword Discovery Tab -->
+      <!-- Keyword Automation Tab -->
       <div id="view-keywords" class="view-panel hidden">
-        <div class="flex justify-between items-center mb-6">
-          <h2 class="text-2xl font-bold">Keyword Discovery</h2>
-          <button id="btnDiscover" onclick="discoverKeywords()" class="bg-blue-600 text-white px-4 py-2 rounded shadow-sm hover:bg-blue-700 font-semibold">Run AI Discovery</button>
-        </div>
-        
-        <div id="keywordsLoading" class="hidden text-center py-10">
-          <div class="animate-spin inline-block w-8 h-8 border-[3px] border-current border-t-transparent text-blue-600 rounded-full" role="status"></div>
-          <p class="text-gray-500 mt-2">Gemini is analyzing the news to find missing high-value entities...</p>
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-3">
+          <div>
+            <h2 class="text-2xl font-bold">Keyword Automation</h2>
+            <p class="text-sm text-gray-500">Entities used by AI scoring to rank high-value power sector verticals.</p>
+          </div>
+          <div class="flex space-x-2">
+            <button id="btnAutoDiscover" onclick="autoDiscoverKeywords()" class="bg-blue-600 text-white px-4 py-2 rounded shadow-sm hover:bg-blue-700 font-semibold flex items-center text-sm">
+              <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+              Auto-Discover & Add Missing
+            </button>
+          </div>
         </div>
 
-        <div id="keywordsResult" class="hidden bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-          <h3 class="font-bold text-gray-900 mb-2">Suggested Entities</h3>
-          <ul id="keywordsList" class="list-disc pl-5 space-y-1 text-gray-700"></ul>
+        <!-- Add Custom Keyword Form -->
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mb-6 flex flex-col sm:flex-row gap-2">
+          <input id="newKeywordInput" type="text" placeholder="Add custom keyword or entity (e.g. STATCOM, Green Hydrogen)..." class="flex-grow border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" onkeydown="if(event.key==='Enter') addCustomKeyword()">
+          <button onclick="addCustomKeyword()" class="bg-gray-800 text-white px-5 py-2 rounded text-sm font-semibold hover:bg-black">Add Keyword</button>
+        </div>
+
+        <div id="keywordsLoading" class="hidden text-center py-8">
+          <div class="animate-spin inline-block w-8 h-8 border-[3px] border-current border-t-transparent text-blue-600 rounded-full" role="status"></div>
+          <p class="text-gray-500 mt-2 text-sm">Gemini AI is analyzing recent news to detect and add missing entities...</p>
+        </div>
+
+        <div id="keywordsBanner" class="hidden mb-6 p-4 rounded-lg text-sm font-medium"></div>
+
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+          <div class="flex justify-between items-center mb-4">
+            <h3 class="font-bold text-gray-900">Active Keyword Entities (<span id="keywordsCount">0</span>)</h3>
+            <span class="text-xs text-gray-500">Auto-saved to Cloud Firestore</span>
+          </div>
+          <div id="keywordsChipContainer" class="flex flex-wrap gap-2"></div>
         </div>
       </div>
 
@@ -216,6 +235,7 @@
       activeBtn.classList.add('bg-blue-900', 'ring-white');
 
       if (tabId === 'ml-data') loadTrainingData();
+      if (tabId === 'keywords') loadKeywords();
       if (tabId === 'health') loadHealth();
     }
 
@@ -316,19 +336,85 @@
       } catch (e) {}
     }
 
-    // --- Keywords & Health ---
-    async function discoverKeywords() {
-      const btn = document.getElementById('btnDiscover');
-      document.getElementById('keywordsLoading').classList.remove('hidden');
-      document.getElementById('keywordsResult').classList.add('hidden');
+    // --- Keywords Automation ---
+    async function loadKeywords() {
       try {
-        const res = await apiCall('/admin/discover-keywords');
+        const res = await apiCall('/admin/keywords');
         if (res.success) {
-          document.getElementById('keywordsResult').classList.remove('hidden');
-          document.getElementById('keywordsList').innerHTML = res.suggestedKeywords.map(k => `<li>${k}</li>`).join('');
+          renderKeywords(res.baseKeywords || [], res.dynamicKeywords || []);
         }
       } catch (e) {}
+    }
+
+    function renderKeywords(baseKeywords, dynamicKeywords) {
+      const container = document.getElementById('keywordsChipContainer');
+      const countEl = document.getElementById('keywordsCount');
+      const total = baseKeywords.length + dynamicKeywords.length;
+      if (countEl) countEl.textContent = total;
+
+      let html = '';
+      baseKeywords.forEach(k => {
+        html += `<span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-800 border border-gray-200" title="Foundational Base Keyword">${k}</span>`;
+      });
+      dynamicKeywords.forEach(k => {
+        const enc = encodeURIComponent(k);
+        html += `<span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-200 shadow-sm" title="Dynamic / Auto-discovered Keyword">
+          <span class="mr-1">⚡ ${k}</span>
+          <button onclick="deleteKeyword('${enc}')" class="ml-1 text-blue-500 hover:text-red-600 font-bold text-sm leading-none focus:outline-none" title="Remove keyword">&times;</button>
+        </span>`;
+      });
+      container.innerHTML = html || '<p class="text-gray-500 text-sm">No keywords active.</p>';
+    }
+
+    async function autoDiscoverKeywords() {
+      document.getElementById('keywordsLoading').classList.remove('hidden');
+      const banner = document.getElementById('keywordsBanner');
+      banner.classList.add('hidden');
+      try {
+        const res = await apiCall('/admin/keywords/auto-discover', { method: 'POST' });
+        if (res.success) {
+          banner.className = 'mb-6 p-4 rounded-lg text-sm font-medium bg-green-50 text-green-800 border border-green-200';
+          if (res.newlyAdded && res.newlyAdded.length > 0) {
+            banner.textContent = `🎯 Auto-discovered & added ${res.newlyAdded.length} new keywords to database: ${res.newlyAdded.join(', ')}`;
+          } else {
+            banner.textContent = `✅ Gemini analyzed recent news against existing keywords. All emerging entities are already captured!`;
+          }
+          banner.classList.remove('hidden');
+          loadKeywords();
+        } else {
+          banner.className = 'mb-6 p-4 rounded-lg text-sm font-medium bg-red-50 text-red-800 border border-red-200';
+          banner.textContent = `❌ Auto-discovery notice: ${res.error || 'No new keywords returned'}`;
+          banner.classList.remove('hidden');
+        }
+      } catch (e) {
+        banner.className = 'mb-6 p-4 rounded-lg text-sm font-medium bg-red-50 text-red-800 border border-red-200';
+        banner.textContent = '❌ Failed to run auto-discovery.';
+        banner.classList.remove('hidden');
+      }
       document.getElementById('keywordsLoading').classList.add('hidden');
+    }
+
+    async function addCustomKeyword() {
+      const input = document.getElementById('newKeywordInput');
+      const val = (input.value || '').trim();
+      if (!val) return;
+      try {
+        await apiCall('/admin/keywords/add', {
+          method: 'POST',
+          body: JSON.stringify({ keyword: val })
+        });
+        input.value = '';
+        loadKeywords();
+      } catch (e) {}
+    }
+
+    async function deleteKeyword(encodedKeyword) {
+      const kw = decodeURIComponent(encodedKeyword);
+      if (!confirm(`Remove keyword "${kw}" from active list?`)) return;
+      try {
+        await apiCall(`/admin/keywords/${encodedKeyword}`, { method: 'DELETE' });
+        loadKeywords();
+      } catch (e) {}
     }
 
     async function loadHealth() {

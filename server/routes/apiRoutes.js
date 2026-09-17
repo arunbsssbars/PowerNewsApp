@@ -8,6 +8,7 @@ const {
   STATE_DISCOM_DIRECTORY,
   HIGH_VALUE_KEYWORDS,
 } = require('../config/rules');
+const keywordService = require('../services/keywordService');
 const {
   cleanHeadline,
   cleanText,
@@ -294,7 +295,8 @@ router.get('/news', async (req, res) => {
 
     // 2. Keyword Boosting (Targeting underserved verticals)
     let keywordMatches = 0;
-    for (const kw of HIGH_VALUE_KEYWORDS) {
+    const activeKeywords = keywordService.getActiveKeywords();
+    for (const kw of activeKeywords) {
       if (titleLower.includes(kw) || summaryLower.includes(kw)) {
         keywordMatches++;
       }
@@ -543,11 +545,47 @@ router.get('/sources', (req, res) => {
 });
 
 // ----------------------------------------------------------------------------
-// Intelligence Features: Digest, Status, Ask Gemini, Keyword Discovery, ML Data
+// Intelligence Features: Keywords Automation, ML Data, Status & Digest
 // ----------------------------------------------------------------------------
+router.get('/admin/keywords', (req, res) => {
+  res.json({
+    success: true,
+    baseKeywords: keywordService.getBaseKeywords(),
+    dynamicKeywords: keywordService.getDynamicKeywords(),
+    activeKeywords: keywordService.getActiveKeywords(),
+    totalActive: keywordService.getActiveKeywords().length,
+  });
+});
+
+router.post('/admin/keywords/auto-discover', async (req, res) => {
+  try {
+    const articles = articleStore.getArticles();
+    const result = await keywordService.autoDiscoverAndAddKeywords(articles);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.post('/admin/keywords/add', async (req, res) => {
+  const { keyword } = req.body;
+  if (!keyword || typeof keyword !== 'string') {
+    return res.status(400).json({ error: 'Valid keyword string is required' });
+  }
+  const added = await keywordService.addKeyword(keyword);
+  res.json({ success: added, activeKeywords: keywordService.getActiveKeywords() });
+});
+
+router.delete('/admin/keywords/:keyword', async (req, res) => {
+  const { keyword } = req.params;
+  const removed = await keywordService.removeKeyword(keyword);
+  res.json({ success: removed, activeKeywords: keywordService.getActiveKeywords() });
+});
+
+// Backward-compatible endpoint (now compares against full active list)
 router.get('/admin/discover-keywords', async (req, res) => {
   const articles = articleStore.getArticles();
-  const result = await discoverNewKeywordsFromNews(articles, HIGH_VALUE_KEYWORDS);
+  const result = await discoverNewKeywordsFromNews(articles, keywordService.getActiveKeywords());
   res.json(result);
 });
 

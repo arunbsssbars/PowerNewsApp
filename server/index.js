@@ -265,6 +265,22 @@ cron.schedule('30 3 * * *', async () => {
   }
 });
 
+// Automated missing keyword discovery (Runs at 04:00 AM & 04:00 PM IST)
+cron.schedule('0 4,16 * * *', async () => {
+  console.log(`[Cron] 🔍 Running scheduled automated missing keyword discovery...`);
+  try {
+    const keywordService = require('./services/keywordService');
+    const res = await keywordService.autoDiscoverAndAddKeywords(articleStore.getArticles());
+    if (res.newlyAdded && res.newlyAdded.length > 0) {
+      console.log(`[Cron] 🎯 Auto-discovered and added ${res.newlyAdded.length} new keywords: ${res.newlyAdded.join(', ')}`);
+    } else {
+      console.log(`[Cron] Keyword discovery complete. No new missing entities found.`);
+    }
+  } catch (err) {
+    console.warn(`[Cron] Automated keyword discovery failed:`, err.message);
+  }
+});
+
 // Server bootstrap
 let server = null;
 

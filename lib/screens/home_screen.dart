@@ -8,6 +8,9 @@ import 'onboarding_screen.dart';
 import '../widgets/ask_gemini_sheet.dart';
 import '../widgets/about_sheet.dart';
 import '../widgets/notifications_sheet.dart';
+import '../services/auth_service.dart';
+import '../widgets/auth_dialog.dart';
+import 'admin_dashboard_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -51,6 +54,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<NewsProvider>();
+    final auth = context.watch<AuthService>();
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final currentIndex = provider.currentNavIndex;
@@ -294,7 +298,60 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
           const SizedBox(width: 6),
 
-          // 4. Three Dots Executive Menu (Comfortable 36x36 button, compact 175-195dp dropdown)
+          // 4. Account / Admin Button
+          Tooltip(
+            message: auth.isAuthenticated
+                ? (auth.isAdmin ? '👑 Admin (${auth.currentUser!.displayName})' : 'Account (${auth.currentUser!.displayName})')
+                : 'Sign In / Account',
+            child: InkWell(
+              borderRadius: BorderRadius.circular(10),
+              onTap: () {
+                AuthDialog.show(context);
+              },
+              child: Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: auth.isAdmin
+                      ? const Color(0xFF10B981).withOpacity(0.18)
+                      : (isDark ? const Color(0xFF1E293B).withOpacity(0.7) : const Color(0xFFF1F5F9)),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: auth.isAdmin
+                        ? const Color(0xFF10B981)
+                        : (isDark ? const Color(0xFF334155).withOpacity(0.7) : const Color(0xFFE2E8F0)),
+                    width: auth.isAdmin ? 1.5 : 1.0,
+                  ),
+                ),
+                child: Center(
+                  child: auth.currentUser?.photoUrl != null
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.network(
+                            auth.currentUser!.photoUrl!,
+                            width: 22,
+                            height: 22,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Icon(
+                              auth.isAdmin ? Icons.shield_rounded : Icons.person_rounded,
+                              size: 18,
+                              color: auth.isAdmin ? const Color(0xFF10B981) : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569)),
+                            ),
+                          ),
+                        )
+                      : Icon(
+                          auth.isAdmin ? Icons.shield_rounded : Icons.person_outline_rounded,
+                          size: 18,
+                          color: auth.isAdmin ? const Color(0xFF10B981) : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569)),
+                        ),
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(width: 6),
+
+          // 5. Three Dots Executive Menu (Comfortable 36x36 button, compact 185-215dp dropdown)
           Container(
             width: 36,
             height: 36,
@@ -316,7 +373,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               ),
               tooltip: 'More Options',
               position: PopupMenuPosition.under,
-              constraints: const BoxConstraints(minWidth: 175, maxWidth: 195),
+              constraints: const BoxConstraints(minWidth: 185, maxWidth: 215),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
                 side: BorderSide(
@@ -327,7 +384,14 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               color: isDark ? const Color(0xFF161B22) : Colors.white,
               elevation: 8,
               onSelected: (value) {
-                if (value == 'ai_desk') {
+                if (value == 'admin_hq') {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const AdminDashboardScreen()),
+                  );
+                } else if (value == 'account') {
+                  AuthDialog.show(context);
+                } else if (value == 'ai_desk') {
                   AskGeminiSheet.show(context);
                 } else if (value == 'guide') {
                   Navigator.push(
@@ -339,6 +403,38 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 }
               },
               itemBuilder: (context) => [
+                if (auth.isAdmin) ...[
+                  const PopupMenuItem(
+                    value: 'admin_hq',
+                    height: 42,
+                    child: Row(
+                      children: [
+                        Icon(Icons.admin_panel_settings_rounded, size: 17, color: Color(0xFF10B981)),
+                        SizedBox(width: 10),
+                        Text(
+                          'Admin Dashboard',
+                          style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800, color: Color(0xFF10B981)),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuDivider(height: 1),
+                ],
+                PopupMenuItem(
+                  value: 'account',
+                  height: 42,
+                  child: Row(
+                    children: [
+                      const Icon(Icons.account_circle_outlined, size: 17, color: Color(0xFF2563EB)),
+                      const SizedBox(width: 10),
+                      Text(
+                        auth.isAuthenticated ? 'Account & Profile' : 'Sign In with Google',
+                        style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                ),
+                const PopupMenuDivider(height: 1),
                 const PopupMenuItem(
                   value: 'ai_desk',
                   height: 42,
