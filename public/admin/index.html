@@ -231,7 +231,7 @@
       if (!authToken) {
         if (auth.currentUser) authToken = await auth.currentUser.getIdToken();
       }
-      window.open(`/api/admin/export-dataset?key=Bearer ${authToken}`, '_blank');
+      window.open(`/api/admin/export-dataset?key=${encodeURIComponent('Bearer ' + authToken)}`, '_blank');
     }
 
     async function loadTrainingData() {
