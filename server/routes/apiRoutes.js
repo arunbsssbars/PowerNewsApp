@@ -49,17 +49,39 @@ const qnaLimiter = rateLimit({
 });
 
 // Auth Middleware
-function requireApiKey(req, res, next) {
+async function requireApiKey(req, res, next) {
   if (req.path === '/health' || req.path === '/apk' || req.path === '/memory') {
     return next();
   }
   
-  const expectedSecret = process.env.APP_CLIENT_SECRET;
-  const apiKey = req.headers['x-api-key'] || req.query.key; // Added req.query.key for easy browser testing
-  if (!apiKey || apiKey !== expectedSecret) {
+  const providedKey = req.headers['x-api-key'] || req.query.key || req.headers['authorization'];
+  if (!providedKey) {
     return res.status(401).json({ error: 'Unauthorized access' });
   }
-  next();
+
+  // 1. Check legacy API Secret (used by the mobile app for now, if necessary)
+  const expectedSecret = process.env.APP_CLIENT_SECRET;
+  if (providedKey === expectedSecret || providedKey === `Bearer ${expectedSecret}`) {
+    return next();
+  }
+
+  // 2. Otherwise, treat it as a Firebase ID Token (for web dashboard)
+  const token = providedKey.replace(/^Bearer\s+/, '');
+  try {
+    require('../services/firestoreService').initFirestore(); // Ensure Firebase App is initialized
+    const admin = require('firebase-admin');
+    const decodedToken = await admin.auth().verifyIdToken(token);
+    
+    // STRICT ADMIN CHECK
+    if (decodedToken.email !== 'arunbsssbars@gmail.com') {
+      return res.status(403).json({ error: 'Forbidden: Admin access only' });
+    }
+    
+    req.user = decodedToken;
+    return next();
+  } catch (error) {
+    return res.status(401).json({ error: 'Unauthorized: Invalid token' });
+  }
 }
 
 // Apply Rate Limiter conditionally (allow health checks to pass infinitely for Render/UptimeRobot)

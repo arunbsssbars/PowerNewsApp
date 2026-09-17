@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PowerNews Admin Dashboard</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.9.0/firebase-auth-compat.js"></script>
   <style>
     /* Force scrollbar to prevent layout shift */
     html { overflow-y: scroll; }
@@ -13,11 +15,15 @@
 </head>
 <body class="bg-gray-100 min-h-screen text-gray-800 font-sans">
   
-  <div id="loginScreen" class="flex items-center justify-center min-h-screen">
-    <div class="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
-      <h2 class="text-2xl font-bold mb-6 text-center text-blue-600">PowerNews Admin</h2>
-      <input type="password" id="apiKeyInput" placeholder="Enter Admin API Key" class="w-full p-3 border rounded mb-4 focus:outline-none focus:border-blue-500">
-      <button onclick="login()" class="w-full bg-blue-600 text-white p-3 rounded font-semibold hover:bg-blue-700">Login</button>
+  <div id="loginScreen" class="flex items-center justify-center min-h-screen px-4">
+    <div class="bg-white p-8 rounded-lg shadow-md w-full max-w-md text-center">
+      <h2 class="text-2xl font-bold mb-6 text-blue-600">PowerNews Admin</h2>
+      <p class="text-gray-600 mb-6 text-sm">Sign in with your admin Google account to access the dashboard.</p>
+      <button onclick="signInWithGoogle()" class="w-full bg-white border border-gray-300 text-gray-700 p-3 rounded font-semibold hover:bg-gray-50 flex items-center justify-center space-x-2">
+        <svg class="w-5 h-5" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+        <span>Sign in with Google</span>
+      </button>
+      <div id="loginError" class="hidden mt-4 text-red-600 text-sm font-medium bg-red-50 p-2 rounded"></div>
     </div>
   </div>
 
@@ -27,85 +33,88 @@
         <div class="flex justify-between h-16 items-center">
           <div class="font-bold text-xl">PowerNews HQ</div>
           <div class="flex space-x-2">
-            <button onclick="switchTab('ml-data')" id="tab-ml-data" class="tab-btn px-4 py-2 rounded-md font-medium ring-2 ring-white bg-blue-900">ML Training Data</button>
-            <button onclick="switchTab('keywords')" id="tab-keywords" class="tab-btn px-4 py-2 rounded-md font-medium ring-2 ring-transparent hover:bg-blue-700">Keyword Discovery</button>
-            <button onclick="switchTab('health')" id="tab-health" class="tab-btn px-4 py-2 rounded-md font-medium ring-2 ring-transparent hover:bg-blue-700">System Health</button>
-            <button onclick="logout()" class="px-3 py-2 ml-4 rounded-md bg-red-600 hover:bg-red-700 font-medium text-sm">Logout</button>
+            <button onclick="switchTab('ml-data')" id="tab-ml-data" class="tab-btn px-2 sm:px-4 py-2 rounded-md font-medium ring-2 ring-white bg-blue-900 text-sm sm:text-base">ML Training</button>
+            <button onclick="switchTab('keywords')" id="tab-keywords" class="tab-btn px-2 sm:px-4 py-2 rounded-md font-medium text-blue-200 hover:bg-blue-700 hover:text-white ring-transparent text-sm sm:text-base">Keywords</button>
+            <button onclick="switchTab('health')" id="tab-health" class="tab-btn px-2 sm:px-4 py-2 rounded-md font-medium text-blue-200 hover:bg-blue-700 hover:text-white ring-transparent text-sm sm:text-base">Health</button>
           </div>
+          <button onclick="logout()" class="text-sm font-semibold text-blue-200 hover:text-white">Logout</button>
         </div>
       </div>
     </nav>
 
-    <main class="flex-grow max-w-7xl mx-auto px-4 py-8 w-full">
+    <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
+      
       <!-- ML Training Data Tab -->
       <div id="view-ml-data" class="view-panel">
-        <div class="flex justify-between items-center mb-6">
-          <h2 class="text-2xl font-bold text-gray-800">ML Training Data (Phase 3)</h2>
-          <div class="space-x-2">
-            <button onclick="downloadDataset()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded shadow font-medium">Download .jsonl Dataset</button>
-            <button onclick="loadTrainingData()" class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded shadow">Refresh Data</button>
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
+          <h2 class="text-2xl font-bold mb-4 sm:mb-0">ML Training Data</h2>
+          <div class="flex space-x-2">
+            <button onclick="loadTrainingData()" class="bg-white border border-gray-300 px-4 py-2 rounded shadow-sm hover:bg-gray-50 text-sm font-semibold">Refresh</button>
+            <button onclick="downloadDataset()" class="bg-purple-600 text-white px-4 py-2 rounded shadow-sm hover:bg-purple-700 text-sm font-semibold flex items-center">
+              <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+              Download .jsonl Dataset
+            </button>
           </div>
         </div>
-        <div id="mlDataLoading" class="text-gray-500 italic hidden">Loading recent data...</div>
+        
+        <div id="mlDataLoading" class="hidden text-center py-10">
+          <div class="animate-spin inline-block w-8 h-8 border-[3px] border-current border-t-transparent text-blue-600 rounded-full" role="status"></div>
+        </div>
+        
         <div id="mlDataContainer" class="space-y-6"></div>
       </div>
 
       <!-- Keyword Discovery Tab -->
       <div id="view-keywords" class="view-panel hidden">
-        <h2 class="text-2xl font-bold text-gray-800 mb-2">AI Keyword Discovery</h2>
-        <p class="text-gray-600 mb-6">Trigger Gemini to read the latest news and suggest new power sector technologies or OEMs to track.</p>
-        <button onclick="discoverKeywords()" id="btnDiscover" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg shadow-md mb-8">Run Gemini Discovery</button>
+        <div class="flex justify-between items-center mb-6">
+          <h2 class="text-2xl font-bold">Keyword Discovery</h2>
+          <button id="btnDiscover" onclick="discoverKeywords()" class="bg-blue-600 text-white px-4 py-2 rounded shadow-sm hover:bg-blue-700 font-semibold">Run AI Discovery</button>
+        </div>
         
-        <div id="keywordsLoading" class="hidden">
-          <div class="animate-pulse flex space-x-4">
-            <div class="flex-1 space-y-4 py-1">
-              <div class="h-4 bg-gray-300 rounded w-3/4"></div>
-              <div class="space-y-2">
-                <div class="h-4 bg-gray-300 rounded"></div>
-                <div class="h-4 bg-gray-300 rounded w-5/6"></div>
-              </div>
-            </div>
-          </div>
-          <p class="text-sm text-gray-500 mt-4">Gemini is reading 300 articles. This takes ~15 seconds...</p>
+        <div id="keywordsLoading" class="hidden text-center py-10">
+          <div class="animate-spin inline-block w-8 h-8 border-[3px] border-current border-t-transparent text-blue-600 rounded-full" role="status"></div>
+          <p class="text-gray-500 mt-2">Gemini is analyzing the news to find missing high-value entities...</p>
         </div>
 
-        <div id="keywordsResult" class="hidden bg-white p-6 rounded-lg shadow-md border-t-4 border-green-500">
-          <h3 class="font-bold text-lg mb-4">Gemini Recommended Additions:</h3>
-          <ul id="keywordsList" class="list-disc pl-5 space-y-2 text-lg"></ul>
+        <div id="keywordsResult" class="hidden bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+          <h3 class="font-bold text-gray-900 mb-2">Suggested Entities</h3>
+          <ul id="keywordsList" class="list-disc pl-5 space-y-1 text-gray-700"></ul>
         </div>
       </div>
 
       <!-- System Health Tab -->
       <div id="view-health" class="view-panel hidden">
-        <div class="flex justify-between items-center mb-6">
-          <h2 class="text-2xl font-bold text-gray-800">System Health & Memory</h2>
-          <div class="flex space-x-2">
-            <div class="bg-gray-200 rounded p-1 flex">
-              <button onclick="toggleHealthView('ui')" id="btn-health-ui" class="px-4 py-1 rounded bg-white shadow-sm font-medium text-sm">UI View</button>
-              <button onclick="toggleHealthView('json')" id="btn-health-json" class="px-4 py-1 rounded hover:bg-gray-300 text-gray-700 font-medium text-sm">JSON</button>
-            </div>
-            <button onclick="loadHealth()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1 rounded shadow text-sm">Refresh</button>
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
+          <h2 class="text-2xl font-bold mb-4 sm:mb-0">System Health</h2>
+          <div class="flex space-x-2 bg-gray-200 p-1 rounded-lg">
+            <button id="btn-health-ui" onclick="toggleHealthView('ui')" class="px-4 py-1 text-sm font-medium rounded-md bg-white shadow-sm text-gray-900">UI View</button>
+            <button id="btn-health-json" onclick="toggleHealthView('json')" class="px-4 py-1 text-sm font-medium rounded-md text-gray-700 hover:bg-gray-300">JSON View</button>
           </div>
         </div>
         
-        <div id="healthLoading" class="text-gray-500 italic hidden">Fetching telemetry...</div>
+        <div id="healthLoading" class="hidden text-center py-10">
+          <div class="animate-spin inline-block w-8 h-8 border-[3px] border-current border-t-transparent text-blue-600 rounded-full" role="status"></div>
+        </div>
 
-        <!-- Pretty UI View -->
-        <div id="health-ui-view" class="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div class="bg-white p-6 rounded-lg shadow-sm border-t-4 border-blue-500">
-            <h3 class="text-gray-500 text-sm font-bold uppercase mb-1">Server Uptime</h3>
-            <div id="ui-uptime" class="text-2xl font-bold text-gray-800">-</div>
-            <div id="ui-started" class="text-xs text-gray-400 mt-2">-</div>
+        <!-- UI View -->
+        <div id="health-ui-view" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
+            <div class="text-xs font-bold text-gray-500 uppercase">Uptime</div>
+            <div class="text-2xl font-bold text-gray-900 mt-1" id="ui-uptime">--</div>
+            <div class="text-sm text-gray-500 mt-1" id="ui-started">--</div>
           </div>
-          <div class="bg-white p-6 rounded-lg shadow-sm border-t-4 border-green-500">
-            <h3 class="text-gray-500 text-sm font-bold uppercase mb-1">Article Database</h3>
-            <div id="ui-articles" class="text-2xl font-bold text-gray-800">-</div>
-            <div id="ui-summaries" class="text-xs text-gray-400 mt-2">-</div>
+          <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
+            <div class="text-xs font-bold text-gray-500 uppercase">Articles Indexed</div>
+            <div class="text-2xl font-bold text-gray-900 mt-1" id="ui-articles">--</div>
           </div>
-          <div class="bg-white p-6 rounded-lg shadow-sm border-t-4 border-purple-500">
-            <h3 class="text-gray-500 text-sm font-bold uppercase mb-1">Memory Usage (RAM)</h3>
-            <div id="ui-memory" class="text-2xl font-bold text-gray-800">-</div>
-            <div id="ui-heap" class="text-xs text-gray-400 mt-2">-</div>
+          <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
+            <div class="text-xs font-bold text-gray-500 uppercase">AI Summaries</div>
+            <div class="text-2xl font-bold text-gray-900 mt-1" id="ui-summaries">--</div>
+          </div>
+          <div class="bg-white p-5 rounded-lg shadow-sm border border-gray-200">
+            <div class="text-xs font-bold text-gray-500 uppercase">Memory (RSS)</div>
+            <div class="text-2xl font-bold text-gray-900 mt-1" id="ui-memory">--</div>
+            <div class="text-sm text-gray-500 mt-1" id="ui-heap">--</div>
           </div>
         </div>
 
@@ -119,26 +128,53 @@
   </div>
 
   <script>
-    let API_KEY = localStorage.getItem('powernews_api_key') || '';
+    const firebaseConfig = {
+      projectId: "powernews-app-2026",
+      appId: "1:1022634770385:web:497a40c739e97aa5ff6af0",
+      storageBucket: "powernews-app-2026.firebasestorage.app",
+      apiKey: "AIzaSyB6ocJtCpXje_8aMaBCulnf2mUak2y2eY0",
+      authDomain: "powernews-app-2026.firebaseapp.com",
+      messagingSenderId: "1022634770385"
+    };
 
-    if (API_KEY) {
-      document.getElementById('loginScreen').classList.add('hidden');
-      document.getElementById('dashboardScreen').classList.remove('hidden');
-      loadTrainingData();
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    let authToken = '';
+
+    auth.onAuthStateChanged(async (user) => {
+      if (user) {
+        if (user.email !== 'arunbsssbars@gmail.com') {
+          showLoginError('Access Denied: Admin email required.');
+          auth.signOut();
+          return;
+        }
+        
+        authToken = await user.getIdToken();
+        document.getElementById('loginScreen').classList.add('hidden');
+        document.getElementById('dashboardScreen').classList.remove('hidden');
+        loadTrainingData();
+      } else {
+        authToken = '';
+        document.getElementById('dashboardScreen').classList.add('hidden');
+        document.getElementById('loginScreen').classList.remove('hidden');
+      }
+    });
+
+    function signInWithGoogle() {
+      const provider = new firebase.auth.GoogleAuthProvider();
+      auth.signInWithPopup(provider).catch(error => {
+        showLoginError(error.message);
+      });
     }
 
-    function login() {
-      const key = document.getElementById('apiKeyInput').value.trim();
-      if (key) {
-        API_KEY = key;
-        localStorage.setItem('powernews_api_key', API_KEY);
-        window.location.reload();
-      }
+    function showLoginError(msg) {
+      const el = document.getElementById('loginError');
+      el.textContent = msg;
+      el.classList.remove('hidden');
     }
 
     function logout() {
-      localStorage.removeItem('powernews_api_key');
-      window.location.reload();
+      auth.signOut();
     }
 
     function switchTab(tabId) {
@@ -177,10 +213,13 @@
     }
 
     async function apiCall(endpoint, options = {}) {
-      const url = \`/api\${endpoint}\`;
-      const headers = { 'x-api-key': API_KEY, 'Content-Type': 'application/json' };
+      if (!authToken) {
+        if (auth.currentUser) authToken = await auth.currentUser.getIdToken();
+      }
+      const url = `/api${endpoint}`;
+      const headers = { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' };
       const response = await fetch(url, { ...options, headers });
-      if (response.status === 401) {
+      if (response.status === 401 || response.status === 403) {
         logout();
         throw new Error('Unauthorized');
       }
@@ -188,8 +227,11 @@
     }
 
     // --- ML Data Logic ---
-    function downloadDataset() {
-      window.open(`/api/admin/export-dataset?key=${API_KEY}`, '_blank');
+    async function downloadDataset() {
+      if (!authToken) {
+        if (auth.currentUser) authToken = await auth.currentUser.getIdToken();
+      }
+      window.open(`/api/admin/export-dataset?key=Bearer ${authToken}`, '_blank');
     }
 
     async function loadTrainingData() {
@@ -203,43 +245,43 @@
     }
 
     function renderMlData(items) {
-      document.getElementById('mlDataContainer').innerHTML = items.map(item => \`
-        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-          <div class="flex justify-between items-start mb-4">
-            <div>
-              <h3 class="text-xl font-bold text-gray-900 mb-1">\${item.title}</h3>
-              <div class="text-sm text-gray-500">
-                <span class="font-semibold text-blue-600">\${item.publisher}</span> • 
-                Score: <span class="font-mono bg-gray-100 px-1 rounded">\${item.calculatedScore}</span> • 
-                \${new Date(item.createdAt).toLocaleString()}
+      document.getElementById('mlDataContainer').innerHTML = items.map(item => `
+        <div class="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-200">
+          <div class="flex flex-col sm:flex-row justify-between items-start mb-4">
+            <div class="mb-2 sm:mb-0">
+              <h3 class="text-lg sm:text-xl font-bold text-gray-900 mb-1">${item.title}</h3>
+              <div class="text-xs sm:text-sm text-gray-500">
+                <span class="font-semibold text-blue-600">${item.publisher}</span> · 
+                Score: <span class="font-mono bg-gray-100 px-1 rounded">${item.calculatedScore}</span> · 
+                ${new Date(item.createdAt).toLocaleString()}
               </div>
             </div>
-            <span class="px-3 py-1 rounded-full text-xs font-bold uppercase \${
+            <span class="px-3 py-1 rounded-full text-xs font-bold uppercase ${
               item.mlStatus === 'approved' ? 'bg-green-100 text-green-800' :
               item.mlStatus === 'rejected' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'
-            }" id="badge-\${item.id}">\${item.mlStatus}</span>
+            }" id="badge-${item.id}">${item.mlStatus}</span>
           </div>
-          <div class="grid grid-cols-2 gap-6 mb-4">
-            <div class="bg-gray-50 p-4 rounded border h-32 overflow-y-auto text-sm">\${item.originalText}</div>
-            <div class="bg-blue-50 p-4 rounded border h-32 overflow-y-auto text-sm">\${item.geminiSummary || ''}</div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-4">
+            <div class="bg-gray-50 p-4 rounded border h-32 overflow-y-auto text-sm">${item.originalText}</div>
+            <div class="bg-blue-50 p-4 rounded border h-32 overflow-y-auto text-sm">${item.geminiSummary || ''}</div>
           </div>
-          <div class="flex justify-between items-center border-t pt-4">
-            <div class="text-sm text-gray-500">Entities: \${(item.matchedEntities||[]).join(', ')}</div>
-            <div class="space-x-2">
-              <button onclick="updateStatus('\${item.id}', 'rejected')" class="px-4 py-1 border border-red-200 text-red-600 rounded hover:bg-red-50 text-sm">Reject</button>
-              <button onclick="updateStatus('\${item.id}', 'approved')" class="px-4 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-sm">Approve</button>
+          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-t pt-4">
+            <div class="text-xs sm:text-sm text-gray-500 mb-2 sm:mb-0">Entities: ${(item.matchedEntities||[]).join(', ')}</div>
+            <div class="space-x-2 flex w-full sm:w-auto">
+              <button onclick="updateStatus('${item.id}', 'rejected')" class="flex-1 sm:flex-none px-4 py-2 sm:py-1 border border-red-200 text-red-600 rounded hover:bg-red-50 text-sm">Reject</button>
+              <button onclick="updateStatus('${item.id}', 'approved')" class="flex-1 sm:flex-none px-4 py-2 sm:py-1 bg-green-600 text-white rounded hover:bg-green-700 text-sm">Approve</button>
             </div>
           </div>
         </div>
-      \`).join('');
+      `).join('');
     }
 
     async function updateStatus(id, status) {
       try {
-        await apiCall(\`/admin/training-data/\${id}/status\`, { method: 'POST', body: JSON.stringify({ status }) });
-        const badge = document.getElementById(\`badge-\${id}\`);
+        await apiCall(`/admin/training-data/${id}/status`, { method: 'POST', body: JSON.stringify({ status }) });
+        const badge = document.getElementById(`badge-${id}`);
         badge.textContent = status;
-        badge.className = \`px-3 py-1 rounded-full text-xs font-bold uppercase \${status === 'approved' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}\`;
+        badge.className = `px-3 py-1 rounded-full text-xs font-bold uppercase ${status === 'approved' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`;
       } catch (e) {}
     }
 
@@ -252,7 +294,7 @@
         const res = await apiCall('/admin/discover-keywords');
         if (res.success) {
           document.getElementById('keywordsResult').classList.remove('hidden');
-          document.getElementById('keywordsList').innerHTML = res.suggestedKeywords.map(k => \`<li>\${k}</li>\`).join('');
+          document.getElementById('keywordsList').innerHTML = res.suggestedKeywords.map(k => `<li>${k}</li>`).join('');
         }
       } catch (e) {}
       document.getElementById('keywordsLoading').classList.add('hidden');
