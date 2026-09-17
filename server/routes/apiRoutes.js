@@ -68,8 +68,8 @@ async function requireApiKey(req, res, next) {
   // 2. Otherwise, treat it as a Firebase ID Token (for web dashboard)
   const token = providedKey.replace(/^Bearer\s+/, '');
   try {
-    const admin = require('firebase-admin');
     const { getApps, initializeApp, cert } = require('firebase-admin/app');
+    const { getAuth } = require('firebase-admin/auth');
     
     // Ensure Firebase is initialized even if offline mode (USE_CLOUD_FIRESTORE=false) skipped it
     if (getApps().length === 0) {
@@ -96,17 +96,20 @@ async function requireApiKey(req, res, next) {
       }
     }
 
-    const decodedToken = await admin.auth().verifyIdToken(token);
+    const decodedToken = await getAuth().verifyIdToken(token);
     
-    // STRICT ADMIN CHECK
-    if (decodedToken.email !== 'arunbsssbars@gmail.com') {
+    // STRICT ADMIN CHECK (case-insensitive & trimmed)
+    const userEmail = (decodedToken.email || '').toLowerCase().trim();
+    if (userEmail !== 'arunbsssbars@gmail.com') {
+      console.warn(`[Admin Auth] Forbidden access attempt by: ${userEmail}`);
       return res.status(403).json({ error: 'Forbidden: Admin access only' });
     }
     
     req.user = decodedToken;
     return next();
   } catch (error) {
-    return res.status(401).json({ error: 'Unauthorized: Invalid token' });
+    console.error('[Admin Auth] Token verification error:', error.message);
+    return res.status(401).json({ error: 'Unauthorized: Invalid token', details: error.message });
   }
 }
 

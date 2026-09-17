@@ -24,6 +24,7 @@ app.use('/admin', express.static(path.join(__dirname, '..', 'public', 'admin')))
 app.use(helmet({
   contentSecurityPolicy: false, // Allows inline CSS styling on the /download landing page
   crossOriginEmbedderPolicy: false,
+  crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
 }));
 
 // Strict CORS Policy

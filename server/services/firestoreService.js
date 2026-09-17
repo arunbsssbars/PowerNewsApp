@@ -369,8 +369,7 @@ async function saveTrainingDataToFirestore(metadata) {
   };
 
   try {
-    // Non-blocking fire-and-forget save
-    database.collection('power60_training_data').doc(metadata.articleId).set(docData, { merge: true });
+    await database.collection('power60_training_data').doc(metadata.articleId).set(docData, { merge: true });
   } catch (err) {
     console.warn(`[Firestore] Failed to save training data for ${metadata.articleId}:`, err.message);
   }

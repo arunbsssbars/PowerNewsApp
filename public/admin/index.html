@@ -143,8 +143,9 @@
 
     auth.onAuthStateChanged(async (user) => {
       if (user) {
-        if (user.email !== 'arunbsssbars@gmail.com') {
-          showLoginError('Access Denied: Admin email required.');
+        const email = (user.email || '').toLowerCase().trim();
+        if (email !== 'arunbsssbars@gmail.com') {
+          showLoginError(`Access Denied: Logged in as ${user.email}. Admin access requires arunbsssbars@gmail.com.`);
           auth.signOut();
           return;
         }
@@ -162,10 +163,24 @@
 
     function signInWithGoogle() {
       const provider = new firebase.auth.GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
       auth.signInWithPopup(provider).catch(error => {
-        showLoginError(error.message);
+        console.error('Google Sign-In Error:', error);
+        if (error.code === 'auth/unauthorized-domain') {
+          showLoginError(`Domain Unauthorized: "${window.location.hostname}" is not authorized. Please add it to Firebase Console -> Authentication -> Settings -> Authorized domains.`);
+        } else if (error.code === 'auth/popup-blocked') {
+          showLoginError('Popup was blocked by your browser. Please allow popups for this site.');
+        } else if (error.code === 'auth/popup-closed-by-user') {
+          showLoginError('Sign-in cancelled (popup was closed before completing login).');
+        } else {
+          showLoginError(error.message);
+        }
       });
     }
+
+    auth.getRedirectResult().catch(err => {
+      if (err && err.message) showLoginError(err.message);
+    });
 
     function showLoginError(msg) {
       const el = document.getElementById('loginError');
@@ -220,8 +235,14 @@
       const headers = { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' };
       const response = await fetch(url, { ...options, headers });
       if (response.status === 401 || response.status === 403) {
+        let errMsg = `Server rejected request (${response.status})`;
+        try {
+          const errData = await response.json();
+          if (errData && errData.error) errMsg = `${errData.error} ${errData.details ? '(' + errData.details + ')' : ''}`;
+        } catch (_) {}
+        showLoginError(errMsg);
         logout();
-        throw new Error('Unauthorized');
+        throw new Error(errMsg);
       }
       return response.json();
     }

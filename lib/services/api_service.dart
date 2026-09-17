@@ -14,7 +14,7 @@ class ApiService {
 
   static const String renderCloudHost = 'https://powernewsapp-backend.onrender.com';
 
-  static List<String> get candidateHosts => [
+  static List<String> get candidateHosts => {
     AppConfig.apiBaseUrl,
     'http://172.20.10.11:3000',
     'http://127.0.0.1:3000',
@@ -24,7 +24,7 @@ class ApiService {
     'http://localhost:3000',
     'http://10.0.2.2:3000',
     'http://100.98.130.99:3000',
-  ].toSet().toList(); // Deduplicate in case .env matches one of the hardcoded ones
+  }.toList(); // Deduplicate in case .env matches one of the hardcoded ones
 
   String _activeHost = AppConfig.apiBaseUrl;
   int _lastTotalCount = 0;
