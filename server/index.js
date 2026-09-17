@@ -15,6 +15,9 @@ const app = express();
 app.set('trust proxy', 1);
 app.use(express.json()); // Need JSON parsing for POST/PUT requests
 app.use('/admin', express.static(path.join(__dirname, '..', 'public', 'admin')));
+app.get('/admin', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'admin', 'index.html'));
+});
 
 // Security Headers via Helmet
 app.use(helmet({
