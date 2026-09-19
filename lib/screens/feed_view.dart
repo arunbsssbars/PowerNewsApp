@@ -14,14 +14,12 @@ class FeedView extends StatefulWidget {
 
 class _FeedViewState extends State<FeedView> {
   late final PageController _pageController;
-  double _currentPage = 0.0;
   NewsProvider? _newsProvider;
 
   @override
   void initState() {
     super.initState();
     _pageController = PageController();
-    _pageController.addListener(_onPageScroll);
   }
 
   @override
@@ -29,14 +27,6 @@ class _FeedViewState extends State<FeedView> {
     super.didChangeDependencies();
     _newsProvider = context.read<NewsProvider>();
     _newsProvider?.onScrollToTopRequested = _scrollToTop;
-  }
-
-  void _onPageScroll() {
-    if (_pageController.hasClients) {
-      setState(() {
-        _currentPage = _pageController.page ?? 0.0;
-      });
-    }
   }
 
   void _scrollToTop() {
@@ -55,7 +45,6 @@ class _FeedViewState extends State<FeedView> {
       _newsProvider?.onScrollToTopRequested = null;
     }
     _newsProvider = null;
-    _pageController.removeListener(_onPageScroll);
     _pageController.dispose();
     super.dispose();
   }
@@ -99,34 +88,18 @@ class _FeedViewState extends State<FeedView> {
           },
           itemBuilder: (context, index) {
             final article = articles[index];
-            final double pageOffset = _currentPage - index;
-
-            // Physics-based interpolation: Scale (0.92 to 1.0), Opacity (0.70 to 1.0)
-            final double scale = (1.0 - (pageOffset.abs() * 0.08)).clamp(0.92, 1.0);
-            final double opacity = (1.0 - (pageOffset.abs() * 0.30)).clamp(0.70, 1.0);
-            final double translationY = pageOffset * 10.0;
-
-            return Transform.translate(
-              offset: Offset(0, translationY),
-              child: Transform.scale(
-                scale: scale,
-                child: Opacity(
-                  opacity: opacity,
-                  child: ExecutiveCardView(
-                    article: article,
-                    currentIndex: index,
-                    totalCount: articles.length,
-                    onNextCard: () {
-                      if (index < articles.length - 1) {
-                        _pageController.nextPage(
-                          duration: const Duration(milliseconds: 300),
-                          curve: Curves.easeOutCubic,
-                        );
-                      }
-                    },
-                  ),
-                ),
-              ),
+            return ExecutiveCardView(
+              article: article,
+              currentIndex: index,
+              totalCount: articles.length,
+              onNextCard: () {
+                if (index < articles.length - 1) {
+                  _pageController.nextPage(
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeOut,
+                  );
+                }
+              },
             );
           },
         ),

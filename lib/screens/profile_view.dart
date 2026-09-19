@@ -114,9 +114,6 @@ class _ProfileViewState extends State<ProfileView> {
     final textPrimary = isDark ? Colors.white : const Color(0xFF0F172A);
     final textSecondary = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
 
-    // Dynamic scale motion factor based on scrolling
-    final avatarScale = (1.0 - (_scrollOffset / 300).clamp(0.0, 0.25));
-
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF0B1120) : const Color(0xFFF8FAFC),
       body: CustomScrollView(
@@ -137,40 +134,13 @@ class _ProfileViewState extends State<ProfileView> {
                 StretchMode.blurBackground,
               ],
               titlePadding: const EdgeInsets.only(left: 20, bottom: 16),
-              title: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Transform.scale(
-                    scale: avatarScale,
-                    child: Container(
-                      width: 28,
-                      height: 28,
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: LinearGradient(
-                          colors: [Color(0xFF2563EB), Color(0xFF0284C7)],
-                        ),
-                      ),
-                      child: Center(
-                        child: Text(
-                          user != null && user.displayName.isNotEmpty
-                              ? user.displayName[0].toUpperCase()
-                              : 'P',
-                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: Colors.white),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    user != null ? (isAdmin ? 'Admin HQ & Profile' : 'Executive Profile') : 'Identity & Auth',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                      color: textPrimary,
-                    ),
-                  ),
-                ],
+              title: Text(
+                user != null ? (isAdmin ? 'Admin Profile' : 'Profile') : 'Auth',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: textPrimary,
+                ),
               ),
               background: Container(
                 decoration: BoxDecoration(

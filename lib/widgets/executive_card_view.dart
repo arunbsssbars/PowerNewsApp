@@ -75,31 +75,16 @@ class ExecutiveCardView extends StatelessWidget {
     final isBookmarked = provider.isBookmarked(article.id);
 
     final cardBg = isDark ? const Color(0xFF111827) : Colors.white;
-    final borderColor = isDark ? const Color(0x14FFFFFF) : const Color(0x0F000000);
     final metaColor = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
 
     final size = MediaQuery.of(context).size;
-    final imageHeight = (size.height * 0.21).clamp(140.0, 200.0);
+    final imageHeight = (size.height * 0.35).clamp(200.0, 350.0);
 
     return Container(
       width: double.infinity,
       height: double.infinity,
-      margin: const EdgeInsets.fromLTRB(14, 8, 14, 12),
-      decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: borderColor, width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.45 : 0.06),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(18),
-        child: Column(
+      color: cardBg,
+      child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // 1. Media Area: Publisher Lead Image with smooth fallback
@@ -154,7 +139,6 @@ class ExecutiveCardView extends StatelessWidget {
             _buildDockedActionBar(context, isDark, isBookmarked, provider),
           ],
         ),
-      ),
     );
   }
 

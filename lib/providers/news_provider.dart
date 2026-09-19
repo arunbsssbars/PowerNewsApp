@@ -1078,7 +1078,17 @@ class NewsProvider extends ChangeNotifier {
           _hasMore = false;
         }
       } else {
-        _articles = sorted;
+        // Filter out Daily Wrap-up articles from the main feed as requested by user
+        final filteredList = sorted.where((a) {
+          final title = a.title.toLowerCase();
+          return !title.contains('wrap-up') && !title.contains('wrap up') && !title.contains('daily power executive');
+        }).toList();
+
+        if (isRefresh) {
+          _articles = filteredList;
+        } else {
+          _articles.addAll(filteredList);
+        }
         _hasMore = news.length == _pageSize;
         // Strictly persist ONLY verified AI-summarized articles into local cache
         await _cacheService.cacheArticles(cleanNews);
