@@ -27,11 +27,11 @@ class ExecutiveCardView extends StatelessWidget {
     final diff = now.difference(dt);
     if (diff.inMinutes < 60) {
       final mins = diff.inMinutes.clamp(1, 59);
-      return '${mins}m';
+      return '${mins}m ago';
     } else if (diff.inHours < 24) {
-      return '${diff.inHours}h';
+      return '${diff.inHours}h ago';
     } else if (diff.inDays < 7) {
-      return '${diff.inDays}d';
+      return '${diff.inDays}d ago';
     }
     return '${dt.day}/${dt.month}';
   }
@@ -78,71 +78,76 @@ class ExecutiveCardView extends StatelessWidget {
     final metaColor = isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B);
 
     final size = MediaQuery.of(context).size;
-    final imageHeight = (size.height * 0.35).clamp(200.0, 350.0);
+    // Balanced lead image height (allocated 30% of screen height to perfectly fill card without bottom gaps)
+    final imageHeight = (size.height * 0.30).clamp(210.0, 265.0);
 
     return Container(
       width: double.infinity,
       height: double.infinity,
       color: cardBg,
       child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 1. Media Area: Publisher Lead Image with smooth fallback
-            _buildLeadImage(imageHeight, isDark, catColor),
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 1. Media Area: Publisher Lead Image with professional glass capsule control bar at bottom
+          _buildLeadImage(context, imageHeight, isDark, catColor, isBookmarked, provider),
 
-            // 2. Main Executive Intelligence Content (Non-scrolling body)
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(18, 14, 18, 8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Minimalist Breadcrumb Meta Row
-                    _buildMinimalMetaRow(catColor, metaColor, isDark),
-                    const SizedBox(height: 10),
+          // 2. Main Executive Intelligence Content (Non-scrolling body, justified text, guaranteed fit)
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(18, 14, 18, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Minimalist Breadcrumb Meta Row
+                  _buildMinimalMetaRow(catColor, metaColor, isDark),
+                  const SizedBox(height: 12),
 
-                    // Executive Headline (15-16pt bold, max 2 lines, tight letter spacing)
-                    Text(
-                      article.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 16,
-                        height: 1.28,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.25,
-                        color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
-                      ),
+                  // Executive Headline (High-contrast 18.5pt bold)
+                  Text(
+                    article.title,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 18.5,
+                      height: 1.30,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.25,
+                      color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
                     ),
-                    const SizedBox(height: 10),
+                  ),
+                  const SizedBox(height: 12),
 
-                    // Strict 60-Word Brief with highlighted numbers/metrics
-                    Expanded(
-                      child: FormattedSummaryView(
-                        summary: article.summary,
-                        isDark: isDark,
-                        title: article.title,
-                        player: article.player,
-                        city: article.city,
-                        state: article.state,
-                        fontSize: 15,
-                        lineHeight: 1.48,
-                        isScrollable: false,
-                      ),
+                  // Strict 60-Word Brief with full width, justified alignment, and fitted height (no scroll)
+                  Expanded(
+                    child: FormattedSummaryView(
+                      summary: article.summary,
+                      isDark: isDark,
+                      title: article.title,
+                      player: article.player,
+                      city: article.city,
+                      state: article.state,
+                      fontSize: 16.5,
+                      lineHeight: 1.54,
+                      isScrollable: false,
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
-
-            // 3. Floating / Docked Executive Action Bar
-            _buildDockedActionBar(context, isDark, isBookmarked, provider),
-          ],
-        ),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildLeadImage(double height, bool isDark, Color catColor) {
+  Widget _buildLeadImage(
+    BuildContext context,
+    double height,
+    bool isDark,
+    Color catColor,
+    bool isBookmarked,
+    NewsProvider provider,
+  ) {
     final imgUrl = article.imageUrl?.trim();
     final hasValidImage = imgUrl != null && imgUrl.startsWith('http');
 
@@ -180,48 +185,201 @@ class ExecutiveCardView extends StatelessWidget {
           else
             _buildFallbackBanner(isDark, catColor),
 
-          // Subtle Gradient Scrim at bottom of image
+          // Multi-Stop Cinematic Gradient Scrim at bottom of image
           Positioned(
             left: 0,
             right: 0,
             bottom: 0,
-            height: 48,
+            height: 85,
             child: DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.bottomCenter,
                   end: Alignment.topCenter,
                   colors: [
-                    (isDark ? const Color(0xFF111827) : Colors.white).withOpacity(0.85),
+                    Colors.black.withOpacity(0.85),
+                    Colors.black.withOpacity(0.40),
                     Colors.transparent,
                   ],
+                  stops: const [0.0, 0.55, 1.0],
                 ),
               ),
             ),
           ),
 
-          // Source Tag on top right
+          // Top Right: Publisher Source Tag
           Positioned(
-            top: 10,
-            right: 12,
+            top: 8,
+            right: 10,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
               decoration: BoxDecoration(
                 color: Colors.black.withOpacity(0.65),
                 borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: Colors.white.withOpacity(0.12), width: 0.8),
+                border: Border.all(color: Colors.white.withOpacity(0.15), width: 0.8),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.newspaper_rounded, size: 11, color: Colors.white.withOpacity(0.85)),
+                  Icon(Icons.newspaper_rounded, size: 11, color: Colors.white.withOpacity(0.9)),
                   const SizedBox(width: 4),
                   Text(
                     article.source,
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 10.5,
+                      fontSize: 10,
                       fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Professional Unified Glass Capsule Control Bar at Bottom of Image
+          Positioned(
+            left: 10,
+            right: 10,
+            bottom: 7,
+            child: Container(
+              height: 38,
+              decoration: BoxDecoration(
+                color: const Color(0xFF0F172A).withOpacity(0.82),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.18),
+                  width: 0.9,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.35),
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  // 1. Article Counter Badge (e.g. "3 / 48")
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.layers_rounded,
+                          size: 12.5,
+                          color: Color(0xFF38BDF8),
+                        ),
+                        const SizedBox(width: 4.5),
+                        Text(
+                          '${currentIndex + 1} / $totalCount',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Subtle vertical divider
+                  Container(
+                    width: 0.8,
+                    height: 16,
+                    color: Colors.white.withOpacity(0.18),
+                  ),
+
+                  const Spacer(),
+
+                  // 2. Bookmark Action
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(16),
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        provider.toggleBookmark(article);
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                        child: Icon(
+                          isBookmarked ? Icons.bookmark_rounded : Icons.bookmark_outline_rounded,
+                          size: 17,
+                          color: isBookmarked ? const Color(0xFFF59E0B) : Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // 3. Share Action
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(16),
+                      onTap: () => _shareArticle(context),
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                        child: Icon(
+                          Icons.share_outlined,
+                          size: 16.5,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(width: 2),
+
+                  // 4. "Read Story ↗" Action Button
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () {
+                        HapticFeedback.lightImpact();
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ReaderScreen(article: article),
+                          ),
+                        );
+                      },
+                      borderRadius: BorderRadius.circular(14),
+                      child: Container(
+                        margin: const EdgeInsets.only(right: 4),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF2563EB), Color(0xFF0284C7)],
+                          ),
+                          borderRadius: BorderRadius.circular(14),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF0284C7).withOpacity(0.35),
+                              blurRadius: 4,
+                              offset: const Offset(0, 1.5),
+                            ),
+                          ],
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Read',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.2,
+                              ),
+                            ),
+                            SizedBox(width: 3),
+                            Icon(Icons.arrow_outward_rounded, size: 11.5, color: Colors.white),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 ],
@@ -248,7 +406,7 @@ class ExecutiveCardView extends StatelessWidget {
       child: Center(
         child: Icon(
           article.getCategoryIcon(),
-          size: 44,
+          size: 40,
           color: catColor.withOpacity(0.65),
         ),
       ),
@@ -258,23 +416,31 @@ class ExecutiveCardView extends StatelessWidget {
   Widget _buildMinimalMetaRow(Color catColor, Color metaColor, bool isDark) {
     final elements = <Widget>[];
 
-    // 1. Category
+    // 1. Category Tag
     elements.add(
-      Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(article.getCategoryIcon(), size: 12, color: catColor),
-          const SizedBox(width: 4),
-          Text(
-            article.primaryCategory.toUpperCase(),
-            style: TextStyle(
-              color: catColor,
-              fontSize: 10.5,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.5,
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6.5, vertical: 2.5),
+        decoration: BoxDecoration(
+          color: catColor.withOpacity(isDark ? 0.22 : 0.12),
+          borderRadius: BorderRadius.circular(5),
+          border: Border.all(color: catColor.withOpacity(0.35), width: 0.8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(article.getCategoryIcon(), size: 11, color: catColor),
+            const SizedBox(width: 4),
+            Text(
+              article.primaryCategory.toUpperCase(),
+              style: TextStyle(
+                color: catColor,
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.4,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
 
@@ -289,7 +455,7 @@ class ExecutiveCardView extends StatelessWidget {
             article.player!,
             style: TextStyle(
               color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
-              fontSize: 10.5,
+              fontSize: 11,
               fontWeight: FontWeight.w700,
             ),
             maxLines: 1,
@@ -309,7 +475,7 @@ class ExecutiveCardView extends StatelessWidget {
             geo,
             style: TextStyle(
               color: metaColor,
-              fontSize: 10.5,
+              fontSize: 11,
               fontWeight: FontWeight.w600,
             ),
             maxLines: 1,
@@ -326,137 +492,23 @@ class ExecutiveCardView extends StatelessWidget {
         _formatRelativeTime(article.publishedAt),
         style: TextStyle(
           color: metaColor,
-          fontSize: 10.5,
+          fontSize: 11,
           fontWeight: FontWeight.w500,
         ),
       ),
     );
 
     return Row(
-      mainAxisSize: MainAxisSize.min,
       children: elements,
     );
   }
 
   Widget _buildDot(Color color) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 5),
       child: Text(
         '•',
-        style: TextStyle(color: color.withOpacity(0.6), fontSize: 11),
-      ),
-    );
-  }
-
-  Widget _buildDockedActionBar(
-    BuildContext context,
-    bool isDark,
-    bool isBookmarked,
-    NewsProvider provider,
-  ) {
-    final borderColor = isDark ? const Color(0x14FFFFFF) : const Color(0x0F000000);
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
-        border: Border(top: BorderSide(color: borderColor, width: 1)),
-      ),
-      child: Row(
-        children: [
-          // Counter Progress pill: "3 / 48"
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1F2937) : const Color(0xFFE2E8F0),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Text(
-              '${currentIndex + 1} / $totalCount',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
-              ),
-            ),
-          ),
-
-          const Spacer(),
-
-          // Bookmark Pill Button
-          IconButton(
-            icon: Icon(
-              isBookmarked ? Icons.bookmark_rounded : Icons.bookmark_outline_rounded,
-              color: isBookmarked ? AppTheme.lightAccent : (isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary),
-              size: 21,
-            ),
-            tooltip: isBookmarked ? 'Bookmarked' : 'Save Briefing',
-            onPressed: () {
-              HapticFeedback.selectionClick();
-              provider.toggleBookmark(article);
-            },
-          ),
-
-          // Share Pill Button
-          IconButton(
-            icon: Icon(
-              Icons.share_outlined,
-              color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
-              size: 20,
-            ),
-            tooltip: 'Share Briefing',
-            onPressed: () => _shareArticle(context),
-          ),
-
-          const SizedBox(width: 4),
-
-          // Prominent "Read Full Story ↗" Action Pill
-          InkWell(
-            onTap: () {
-              HapticFeedback.lightImpact();
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => ReaderScreen(article: article),
-                ),
-              );
-            },
-            borderRadius: BorderRadius.circular(8),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: isDark
-                      ? [const Color(0xFF0284C7), const Color(0xFF2563EB)]
-                      : [const Color(0xFF2563EB), const Color(0xFF1D4ED8)],
-                ),
-                borderRadius: BorderRadius.circular(8),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF2563EB).withOpacity(0.3),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Read Full Story',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  SizedBox(width: 4),
-                  Icon(Icons.arrow_outward_rounded, size: 14, color: Colors.white),
-                ],
-              ),
-            ),
-          ),
-        ],
+        style: TextStyle(color: color.withOpacity(0.55), fontSize: 11),
       ),
     );
   }

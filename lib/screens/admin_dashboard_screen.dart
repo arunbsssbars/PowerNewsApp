@@ -9,7 +9,12 @@ import '../services/api_service.dart';
 import '../config/app_config.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
-  const AdminDashboardScreen({super.key});
+  final int initialTabIndex;
+
+  const AdminDashboardScreen({
+    super.key,
+    this.initialTabIndex = 0,
+  });
 
   @override
   State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
@@ -37,16 +42,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
   bool _isLoadingMl = false;
   String _mlFilter = 'all';
 
-  // Tab 4: System Health State
+  // Tab 4: System Health & Storage State
   Map<String, dynamic>? _healthData;
   Map<String, dynamic>? _memoryData;
+  Map<String, dynamic>? _storageData;
   bool _isLoadingHealth = false;
+  bool _isLoadingStorage = false;
   bool _isTriggeringSync = false;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    _tabController = TabController(
+      length: 5,
+      vsync: this,
+      initialIndex: widget.initialTabIndex.clamp(0, 4),
+    );
     _loadAllTabs();
   }
 
@@ -76,6 +87,26 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
     _fetchKeywords();
     _fetchMlData();
     _fetchHealth();
+    _fetchStorageStatus();
+  }
+
+  Future<void> _fetchStorageStatus() async {
+    setState(() => _isLoadingStorage = true);
+    try {
+      final res = await http.get(
+        Uri.parse('$_baseUrl/api/admin/storage-status'),
+        headers: _getHeaders(),
+      );
+      if (res.statusCode == 200) {
+        setState(() {
+          _storageData = jsonDecode(res.body);
+        });
+      }
+    } catch (e) {
+      debugPrint('[Admin] Error fetching storage status: $e');
+    } finally {
+      if (mounted) setState(() => _isLoadingStorage = false);
+    }
   }
 
   // ===========================================================================
@@ -1085,6 +1116,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
 
               const SizedBox(height: 16),
 
+              // Firebase Cloud Storage & Firestore Telemetry Card
+              _buildFirebaseStorageCard(isDark, bgCard, borderColor),
+
+              const SizedBox(height: 16),
+
               // Manual Scraper Trigger Card
               Container(
                 padding: const EdgeInsets.all(16),
@@ -1154,6 +1190,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
                             final raw = {
                               'health': _healthData,
                               'memory': _memoryData,
+                              'storage': _storageData,
                             };
                             Clipboard.setData(ClipboardData(text: const JsonEncoder.withIndent('  ').convert(raw)));
                             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Telemetry JSON copied!')));
@@ -1166,6 +1203,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
                       const JsonEncoder.withIndent('  ').convert({
                         'health': _healthData,
                         'memory': _memoryData,
+                        'storage': _storageData,
                       }),
                       style: TextStyle(
                         fontFamily: 'monospace',
@@ -1178,6 +1216,256 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
               ),
             ],
           );
+  }
+
+  Widget _buildFirebaseStorageCard(bool isDark, Color bgCard, Color borderColor) {
+    if (_isLoadingStorage && _storageData == null) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: bgCard,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: borderColor),
+        ),
+        child: const Center(
+          child: Padding(
+            padding: EdgeInsets.all(16.0),
+            child: CircularProgressIndicator(),
+          ),
+        ),
+      );
+    }
+
+    final firestore = _storageData?['firestore'] as Map<String, dynamic>?;
+    final cloudStorage = _storageData?['cloudStorage'] as Map<String, dynamic>?;
+
+    final isConnected = firestore?['connected'] == true;
+    final totalDocs = firestore?['totalDocuments'] ?? 0;
+    final estimatedMb = (firestore?['estimatedSizeMb'] as num?)?.toDouble() ?? 0.0;
+    final quotaMb = (firestore?['freeTierQuotaMb'] as num?)?.toDouble() ?? 1024.0;
+    final quotaUsedPercent = (firestore?['quotaUsedPercent'] as num?)?.toDouble() ?? 0.0;
+    final purgeThreshold = (firestore?['purgeThresholdMb'] as num?)?.toDouble() ?? 850.0;
+
+    final collections = firestore?['collections'] as Map<String, dynamic>? ?? {};
+    final aiDocs = collections['ai_summaries']?['count'] ?? 0;
+    final aiMb = collections['ai_summaries']?['estimatedMb'] ?? 0.0;
+    final mlDocs = collections['power60_training_data']?['count'] ?? 0;
+    final mlMb = collections['power60_training_data']?['estimatedMb'] ?? 0.0;
+
+    final storageMessage = cloudStorage?['message'] ?? 'Zero-Storage Policy: Images served from publisher CDNs.';
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: bgCard,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(7),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF59E0B).withOpacity(0.14),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.cloud_sync_rounded, color: Color(0xFFF59E0B), size: 20),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Firestore & Firebase Storage',
+                      style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w800),
+                    ),
+                    Text(
+                      'Free tier usage quota & persistence health',
+                      style: TextStyle(fontSize: 11, color: Colors.grey),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: isConnected
+                      ? const Color(0xFF10B981).withOpacity(0.14)
+                      : const Color(0xFFEF4444).withOpacity(0.14),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(
+                    color: isConnected ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                    width: 0.8,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isConnected ? Icons.cloud_done_rounded : Icons.cloud_off_rounded,
+                      size: 11,
+                      color: isConnected ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      isConnected ? 'ONLINE' : 'OFFLINE',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        color: isConnected ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 4),
+              IconButton(
+                icon: const Icon(Icons.refresh_rounded, size: 18),
+                tooltip: 'Refresh Storage Telemetry',
+                onPressed: _fetchStorageStatus,
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          // Quota Progress Bar
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '$estimatedMb MB of ${quotaMb.toInt()} MB Free Tier',
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+              ),
+              Text(
+                '$quotaUsedPercent% Used',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: quotaUsedPercent > 80 ? const Color(0xFFEF4444) : const Color(0xFF10B981),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: LinearProgressIndicator(
+              value: (quotaUsedPercent / 100).clamp(0.005, 1.0),
+              minHeight: 7,
+              backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFE2E8F0),
+              valueColor: AlwaysStoppedAnimation<Color>(
+                quotaUsedPercent > 80 ? const Color(0xFFEF4444) : const Color(0xFF10B981),
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Auto-purge safety trigger: ${purgeThreshold.toInt()} MB limit (FIFO eviction)',
+            style: const TextStyle(fontSize: 10, color: Colors.grey),
+          ),
+
+          const SizedBox(height: 14),
+          Divider(color: borderColor, height: 1),
+          const SizedBox(height: 12),
+
+          // 3-Column Metrics Breakdown
+          Row(
+            children: [
+              Expanded(
+                child: _buildStorageMetricTile(
+                  label: 'TOTAL DOCS',
+                  value: '$totalDocs',
+                  sub: 'Across all collections',
+                  isDark: isDark,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildStorageMetricTile(
+                  label: 'AI SUMMARIES',
+                  value: '$aiDocs',
+                  sub: '~$aiMb MB',
+                  isDark: isDark,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _buildStorageMetricTile(
+                  label: 'ML DATASET',
+                  value: '$mlDocs',
+                  sub: '~$mlMb MB',
+                  isDark: isDark,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 10),
+
+          // Binary Cloud Storage Policy Banner
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: borderColor),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.info_outline_rounded, size: 14, color: Color(0xFF2563EB)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    storageMessage,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStorageMetricTile({
+    required String label,
+    required String value,
+    required String sub,
+    required bool isDark,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(fontSize: 8.5, fontWeight: FontWeight.bold, color: Colors.grey),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w800),
+          ),
+          Text(
+            sub,
+            style: const TextStyle(fontSize: 9.5, color: Colors.grey),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildTelemetryCard({

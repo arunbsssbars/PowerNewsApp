@@ -467,6 +467,108 @@ async function getApprovedTrainingData() {
   }
 }
 
+/**
+ * Retrieves comprehensive Firestore database storage and Firebase Cloud Storage telemetry.
+ */
+async function getStorageStatus() {
+  const database = initFirestore();
+  const result = {
+    success: true,
+    timestamp: new Date().toISOString(),
+    firestore: {
+      connected: !!database,
+      status: database ? 'online' : 'offline',
+      databaseId: '(default)',
+      totalDocuments: 0,
+      estimatedSizeKb: 0,
+      estimatedSizeMb: 0,
+      freeTierQuotaMb: 1024,
+      quotaUsedPercent: 0,
+      purgeThresholdMb: 850,
+      isNearLimit: false,
+      collections: {
+        ai_summaries: { count: 0, estimatedKb: 0, estimatedMb: 0 },
+        power60_training_data: { count: 0, estimatedKb: 0, estimatedMb: 0 },
+        system_state: { count: 0, estimatedKb: 0, estimatedMb: 0 },
+        users: { count: 0, estimatedKb: 0, estimatedMb: 0 }
+      }
+    },
+    cloudStorage: {
+      configured: false,
+      bucketName: null,
+      status: 'zero_storage_policy',
+      message: 'Zero-Storage Policy: Article images reference publisher CDNs directly with zero binary cloud storage costs.'
+    },
+    cache: {
+      inMemorySummaries: Object.keys(cachedSummaryMap).length,
+      lastFullSyncTime: lastFullSyncTime ? new Date(lastFullSyncTime).toISOString() : null,
+      syncCooldownActive: (Date.now() - lastFullSyncTime) < SYNC_COOLDOWN_MS
+    }
+  };
+
+  if (!database) {
+    return result;
+  }
+
+  try {
+    const collectionsToInspect = ['ai_summaries', 'power60_training_data', 'system_state', 'users'];
+    let totalDocs = 0;
+    let totalEstimatedKb = 0;
+
+    for (const collName of collectionsToInspect) {
+      try {
+        const countSnap = await database.collection(collName).count().get();
+        const count = countSnap.data().count || 0;
+        const avgDocKb = collName === 'power60_training_data' ? 3.5 : (collName === 'ai_summaries' ? 1.5 : 1.0);
+        const estimatedKb = Math.round(count * avgDocKb * 10) / 10;
+        const estimatedMb = Math.round((estimatedKb / 1024) * 100) / 100;
+
+        result.firestore.collections[collName] = {
+          count,
+          estimatedKb,
+          estimatedMb
+        };
+        totalDocs += count;
+        totalEstimatedKb += estimatedKb;
+      } catch (collErr) {
+        result.firestore.collections[collName] = { count: 0, error: collErr.message };
+      }
+    }
+
+    const estimatedMb = Math.round((totalEstimatedKb / 1024) * 100) / 100;
+    result.firestore.totalDocuments = totalDocs;
+    result.firestore.estimatedSizeKb = Math.round(totalEstimatedKb * 10) / 10;
+    result.firestore.estimatedSizeMb = estimatedMb;
+    result.firestore.quotaUsedPercent = parseFloat(((estimatedMb / 1024) * 100).toFixed(2));
+    result.firestore.isNearLimit = estimatedMb >= 850;
+
+    // Firebase Cloud Storage inspection
+    try {
+      const { getApps } = require('firebase-admin/app');
+      const { getStorage } = require('firebase-admin/storage');
+      if (getApps().length > 0) {
+        const app = getApps()[0];
+        const storage = getStorage(app);
+        const bucket = storage.bucket();
+        if (bucket && bucket.name) {
+          result.cloudStorage.configured = true;
+          result.cloudStorage.bucketName = bucket.name;
+          result.cloudStorage.status = 'active';
+          result.cloudStorage.message = `Cloud Storage bucket "${bucket.name}" is attached.`;
+        }
+      }
+    } catch (storageErr) {
+      result.cloudStorage.message = 'No dedicated bucket configured; images served via direct publisher URLs.';
+    }
+
+    return result;
+  } catch (err) {
+    console.warn('[Firestore] Storage status check warning:', err.message);
+    result.firestore.error = err.message;
+    return result;
+  }
+}
+
 module.exports = {
   initFirestore,
   loadAllSummariesFromFirestore,
@@ -477,4 +579,5 @@ module.exports = {
   getTrainingData,
   updateTrainingDataStatus,
   getApprovedTrainingData,
+  getStorageStatus,
 };

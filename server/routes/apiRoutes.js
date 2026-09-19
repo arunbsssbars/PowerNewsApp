@@ -652,6 +652,16 @@ router.get('/admin/export-dataset', async (req, res) => {
   }
 });
 
+// Admin endpoint to monitor Cloud Firestore and Firebase Storage health & telemetry
+router.get('/admin/storage-status', async (req, res) => {
+  try {
+    const status = await require('../services/firestoreService').getStorageStatus();
+    res.json(status);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 router.get('/gemini-status', (req, res) => {
   const cachedArticles = articleStore.getArticles();
   const total = cachedArticles.length;

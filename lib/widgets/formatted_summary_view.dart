@@ -23,7 +23,7 @@ class FormattedSummaryView extends StatelessWidget {
     this.title,
     this.fontSize = 16.5,
     this.fontFamily,
-    this.lineHeight = 1.55,
+    this.lineHeight = 1.54,
     this.isScrollable = false,
   });
 
@@ -52,6 +52,37 @@ class FormattedSummaryView extends StatelessWidget {
     return spans;
   }
 
+  double _calculateFittingFontSize({
+    required String text,
+    required double startFontSize,
+    required double minFontSize,
+    required double maxWidth,
+    required double maxHeight,
+    required double lineHeight,
+    required String? fontFamily,
+  }) {
+    if (!maxHeight.isFinite || maxHeight <= 0 || maxWidth <= 0) return startFontSize;
+    for (double size = startFontSize; size >= minFontSize; size -= 0.5) {
+      final textPainter = TextPainter(
+        text: TextSpan(
+          text: text,
+          style: TextStyle(
+            fontSize: size,
+            height: lineHeight,
+            fontFamily: fontFamily,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+        maxLines: null,
+      )..layout(maxWidth: maxWidth);
+
+      if (textPainter.size.height <= maxHeight) {
+        return size;
+      }
+    }
+    return minFontSize;
+  }
+
   @override
   Widget build(BuildContext context) {
     final cleanSummary = NewsArticle.cleanHtmlAndEntities(summary);
@@ -73,16 +104,12 @@ class FormattedSummaryView extends StatelessWidget {
       height: lineHeight,
       fontWeight: FontWeight.w400,
       color: textColor,
-      letterSpacing: 0.15,
-    );
-
-    final highlightStyle = baseStyle.copyWith(
-      fontWeight: FontWeight.w700,
-      color: highlightColor,
+      letterSpacing: 0.1,
     );
 
     if (cleanSummary.isEmpty || isHeadlineDuplicate) {
       return Container(
+        width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
           color: isDark ? const Color(0xFF131B2A) : const Color(0xFFF1F5F9),
@@ -93,6 +120,7 @@ class FormattedSummaryView extends StatelessWidget {
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Row(
               children: [
@@ -115,12 +143,13 @@ class FormattedSummaryView extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'A structured 50-word power sector intelligence brief is being generated for this update. Read the full live dispatch directly via the publisher button below.',
+              'A structured 50-word power sector intelligence brief is being generated for this update. Read the full live dispatch directly via the publisher button above.',
               style: baseStyle.copyWith(
                 fontSize: 13,
                 height: 1.45,
                 color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
               ),
+              textAlign: TextAlign.justify,
             ),
           ],
         ),
@@ -149,61 +178,77 @@ class FormattedSummaryView extends StatelessWidget {
             .trim();
       }).where((l) => l.length > 5).toList();
 
-      final bulletsWidget = Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: points.map((point) {
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 7),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: EdgeInsets.only(top: fontSize * 0.45, right: 8),
-                  child: Container(
-                    width: 5,
-                    height: 5,
-                    decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF2563EB),
-                      shape: BoxShape.circle,
-                      boxShadow: isDark
-                          ? [
-                              BoxShadow(
-                                color: const Color(0xFF38BDF8).withOpacity(0.5),
-                                blurRadius: 4,
-                                spreadRadius: 0.5,
-                              )
-                            ]
-                          : null,
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Text.rich(
-                    TextSpan(
-                      children: _buildHighlightedSpans(point, baseStyle, highlightStyle),
-                    ),
-                    textAlign: TextAlign.justify,
-                  ),
-                ),
-              ],
-            ),
-          );
-        }).toList(),
-      );
-
-      if (isScrollable) {
-        return SingleChildScrollView(child: bulletsWidget);
-      }
       return LayoutBuilder(
         builder: (context, constraints) {
-          return FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.topLeft,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: constraints.maxWidth),
+          final double effectiveFontSize = _calculateFittingFontSize(
+            text: points.join(' '),
+            startFontSize: fontSize,
+            minFontSize: 12.0,
+            maxWidth: constraints.maxWidth,
+            maxHeight: constraints.maxHeight,
+            lineHeight: lineHeight,
+            fontFamily: fontFamily,
+          );
+
+          final effectiveBaseStyle = baseStyle.copyWith(fontSize: effectiveFontSize);
+          final effectiveHighlightStyle = effectiveBaseStyle.copyWith(
+            fontWeight: FontWeight.w700,
+            color: highlightColor,
+          );
+
+          final bulletsWidget = Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: points.map((point) {
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: EdgeInsets.only(top: effectiveFontSize * 0.45, right: 8),
+                      child: Container(
+                        width: 5,
+                        height: 5,
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF38BDF8) : const Color(0xFF2563EB),
+                          shape: BoxShape.circle,
+                          boxShadow: isDark
+                              ? [
+                                  BoxShadow(
+                                    color: const Color(0xFF38BDF8).withOpacity(0.5),
+                                    blurRadius: 4,
+                                    spreadRadius: 0.5,
+                                  )
+                                ]
+                              : null,
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: Text.rich(
+                        TextSpan(
+                          children: _buildHighlightedSpans(point, effectiveBaseStyle, effectiveHighlightStyle),
+                        ),
+                        textAlign: TextAlign.justify,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          );
+
+          if (isScrollable) {
+            return SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
               child: bulletsWidget,
-            ),
+            );
+          }
+
+          return SizedBox(
+            width: double.infinity,
+            child: bulletsWidget,
           );
         },
       );
@@ -217,28 +262,46 @@ class FormattedSummaryView extends StatelessWidget {
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
 
-    final proseWidget = Text.rich(
-      TextSpan(
-        children: _buildHighlightedSpans(cleanProse, baseStyle, highlightStyle),
-      ),
-      textAlign: TextAlign.justify,
-    );
-
-    if (isScrollable) {
-      return SingleChildScrollView(child: proseWidget);
-    }
     return LayoutBuilder(
       builder: (context, constraints) {
-        return FittedBox(
-          fit: BoxFit.scaleDown,
-          alignment: Alignment.topLeft,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: constraints.maxWidth),
-            child: proseWidget,
+        final double effectiveFontSize = _calculateFittingFontSize(
+          text: cleanProse,
+          startFontSize: fontSize,
+          minFontSize: 12.0,
+          maxWidth: constraints.maxWidth,
+          maxHeight: constraints.maxHeight,
+          lineHeight: lineHeight,
+          fontFamily: fontFamily,
+        );
+
+        final effectiveBaseStyle = baseStyle.copyWith(fontSize: effectiveFontSize);
+        final effectiveHighlightStyle = effectiveBaseStyle.copyWith(
+          fontWeight: FontWeight.w700,
+          color: highlightColor,
+        );
+
+        final proseWidget = SizedBox(
+          width: double.infinity,
+          child: Text.rich(
+            TextSpan(
+              children: _buildHighlightedSpans(cleanProse, effectiveBaseStyle, effectiveHighlightStyle),
+            ),
+            textAlign: TextAlign.justify,
           ),
+        );
+
+        if (isScrollable) {
+          return SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            child: proseWidget,
+          );
+        }
+
+        return SizedBox(
+          width: double.infinity,
+          child: proseWidget,
         );
       },
     );
   }
 }
-
