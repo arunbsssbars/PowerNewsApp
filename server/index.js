@@ -149,8 +149,9 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'web', 'index.html'));
 });
 
-// Fallback for Flutter Web Routing
-app.get('*', (req, res, next) => {
+// Fallback for Flutter Web Routing (SPA catch-all)
+app.use((req, res, next) => {
+  if (req.method !== 'GET') return next();
   if (req.path.startsWith('/api') || req.path.startsWith('/admin') || req.path.startsWith('/download') || req.path.startsWith('/apk')) {
     return next();
   }
