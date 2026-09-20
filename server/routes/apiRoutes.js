@@ -69,12 +69,32 @@ async function requireApiKey(req, res, next) {
   // 2. Otherwise, treat it as a Firebase ID Token (for web dashboard)
   const token = providedKey.replace(/^Bearer\s+/, '');
   try {
-    const { getApps, initializeApp } = require('firebase-admin/app');
+    const { getApps, initializeApp, cert } = require('firebase-admin/app');
     const { getAuth } = require('firebase-admin/auth');
     
-    // Ensure Firebase is initialized
+    // Ensure Firebase is initialized even if offline mode (USE_CLOUD_FIRESTORE=false) skipped it
     if (getApps().length === 0) {
-      initializeApp();
+      let serviceAccount = null;
+      if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+        try { serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT); }
+        catch (_) {
+          try { serviceAccount = JSON.parse(Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT, 'base64').toString('utf8')); }
+          catch (_) {}
+        }
+      }
+      if (!serviceAccount) {
+        const fs = require('fs');
+        const path = require('path');
+        const localKeyPath = path.join(__dirname, '..', 'config', 'serviceAccountKey.json');
+        if (fs.existsSync(localKeyPath)) serviceAccount = JSON.parse(fs.readFileSync(localKeyPath, 'utf8'));
+      }
+      
+      if (serviceAccount) {
+        initializeApp({ credential: cert(serviceAccount) });
+      } else {
+        // Fallback for Auth verification: Initialize with just the projectId
+        initializeApp({ projectId: 'powernews-app-2026' });
+      }
     }
 
     const decodedToken = await getAuth().verifyIdToken(token);
@@ -101,20 +121,6 @@ router.use((req, res, next) => {
   }
   return globalLimiter(req, res, next);
 });
-
-// Middleware for Cloud Functions: Hydrate articleStore if empty on cold start
-router.use(async (req, res, next) => {
-  const { loadAllSummariesFromFirestore } = require('../services/firestoreService');
-  if (articleStore.getArticles().length === 0) {
-    console.log('[Cloud Function Init] articleStore empty, hydrating from Firestore...');
-    const result = await loadAllSummariesFromFirestore(true);
-    if (result && result.articles && result.articles.length > 0) {
-      articleStore.setArticles(result.articles);
-    }
-  }
-  next();
-});
-
 router.use(requireApiKey);
 
 function getReadableRefreshTime(isoDateString) {
@@ -357,14 +363,11 @@ router.get('/news', async (req, res) => {
   const startIndex = (p - 1) * l;
   const paginated = filtered.slice(startIndex, startIndex + l);
 
-  // Add Edge caching (CDN) for Cloud Functions to drastically reduce Firestore reads
-  res.setHeader('Cache-Control', 'public, max-age=180, s-maxage=300');
-
   res.json({
     total: filtered.length,
     page: p,
     limit: l,
-    articles: paginated,
+    articles: paginated
   });
 });
 
@@ -653,8 +656,6 @@ router.get('/admin/export-dataset', async (req, res) => {
 router.get('/admin/storage-status', async (req, res) => {
   try {
     const status = await require('../services/firestoreService').getStorageStatus();
-    // Add Edge caching (CDN) for Cloud Functions to drastically reduce Firestore reads
-    res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=600');
     res.json(status);
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
