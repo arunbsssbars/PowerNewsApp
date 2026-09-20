@@ -22,52 +22,20 @@ function initFirestore() {
   }
 
   try {
-    const { initializeApp, cert, getApps } = require('firebase-admin/app');
+    const { initializeApp, getApps } = require('firebase-admin/app');
     const { getFirestore } = require('firebase-admin/firestore');
 
-    let serviceAccount = null;
-
-    // 1. Try environment variable containing JSON string
-    if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-      try {
-        serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-      } catch (_) {
-        // May be base64 encoded
-        try {
-          const decoded = Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT, 'base64').toString('utf8');
-          serviceAccount = JSON.parse(decoded);
-        } catch (_) {}
-      }
-    }
-
-    // 2. Try local serviceAccountKey.json if present
-    if (!serviceAccount) {
-      const localKeyPath = path.join(__dirname, '..', 'config', 'serviceAccountKey.json');
-      if (fs.existsSync(localKeyPath)) {
-        serviceAccount = JSON.parse(fs.readFileSync(localKeyPath, 'utf8'));
-      }
-    }
-
-    if (!serviceAccount) {
-      console.log('[Firestore] No service account configured. Operating in local cache fallback mode.');
-      return null;
-    }
-
-    let app;
     if (getApps().length === 0) {
-      app = initializeApp({
-        credential: cert(serviceAccount),
-      });
-    } else {
-      app = getApps()[0];
+      initializeApp(); // In Cloud Functions, this auto-discovers credentials
     }
 
-    db = getFirestore(app);
+    db = getFirestore();
+    db.settings({ ignoreUndefinedProperties: true });
     isInitialized = true;
-    console.log('[Firestore] Connected successfully to Cloud Firestore database.');
+    console.log('[Firestore] Connected successfully to Cloud Firestore database via Cloud Functions default credentials.');
     return db;
   } catch (err) {
-    console.warn('[Firestore] Initialization warning (falling back to local cache):', err.message);
+    console.error('[Firestore] Initialization failed:', err.message);
     return null;
   }
 }
