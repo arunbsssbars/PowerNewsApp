@@ -142,9 +142,19 @@ app.use(express.json());
 // Mount API router
 app.use('/api', apiRoutes);
 
-// Root health probe — uptime monitors that check "/" get a 200 instead of 404
+// Serve Flutter Web App on root
+app.use(express.static(path.join(__dirname, '..', 'public', 'web')));
+
 app.get('/', (req, res) => {
-  res.json({ app: 'PowerNews', status: 'ok', healthEndpoint: '/api/health' });
+  res.sendFile(path.join(__dirname, '..', 'public', 'web', 'index.html'));
+});
+
+// Fallback for Flutter Web Routing
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api') || req.path.startsWith('/admin') || req.path.startsWith('/download') || req.path.startsWith('/apk')) {
+    return next();
+  }
+  res.sendFile(path.join(__dirname, '..', 'public', 'web', 'index.html'));
 });
 
 // APK Download & Landing Page Helpers
