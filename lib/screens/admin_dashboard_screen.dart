@@ -911,33 +911,36 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
             color: bgCard,
             border: Border(bottom: BorderSide(color: borderColor)),
           ),
-          child: Row(
-            children: [
-              Wrap(
-                spacing: 6,
-                children: ['all', 'pending', 'approved', 'rejected'].map((f) {
-                  final isSelected = _mlFilter == f;
-                  return ChoiceChip(
-                    label: Text(f.toUpperCase(), style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isSelected ? Colors.white : null)),
-                    selected: isSelected,
-                    selectedColor: const Color(0xFF2563EB),
-                    onSelected: (_) => setState(() => _mlFilter = f),
-                  );
-                }).toList(),
-              ),
-              const Spacer(),
-              ElevatedButton.icon(
-                onPressed: _exportDataset,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF10B981),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                Wrap(
+                  spacing: 6,
+                  children: ['all', 'pending', 'approved', 'rejected'].map((f) {
+                    final isSelected = _mlFilter == f;
+                    return ChoiceChip(
+                      label: Text(f.toUpperCase(), style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isSelected ? Colors.white : null)),
+                      selected: isSelected,
+                      selectedColor: const Color(0xFF2563EB),
+                      onSelected: (_) => setState(() => _mlFilter = f),
+                    );
+                  }).toList(),
                 ),
-                icon: const Icon(Icons.download_rounded, size: 16),
-                label: const Text('Export .jsonl', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-              ),
-            ],
+                const SizedBox(width: 12),
+                ElevatedButton.icon(
+                  onPressed: _exportDataset,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF10B981),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  ),
+                  icon: const Icon(Icons.download_rounded, size: 16),
+                  label: const Text('Export .jsonl', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
           ),
         ),
 
