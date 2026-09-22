@@ -230,6 +230,56 @@ function extractLeadImage(document, html, targetUrl) {
 }
 
 /**
+ * Tier 1: Gemini AI HTML Parser
+ * Feeds raw stripped text to Gemini to flawlessly extract the main article.
+ */
+async function extractWithGemini(html, targetUrl) {
+  try {
+    const { GoogleGenAI } = require('@google/genai');
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) return null;
+
+    const { document } = parseHTML(html);
+    const leadImage = extractLeadImage(document, html, targetUrl);
+
+    // Strip out non-content tags to save tokens
+    const $ = cheerio.load(html);
+    $('script, style, svg, img, nav, footer, iframe, noscript, header, aside, .sidebar, .menu').remove();
+    const rawText = $('body').text().replace(/\s+/g, ' ').trim();
+
+    // If there's barely any text, it might be a block page
+    if (rawText.length < 200) return null;
+
+    const ai = new GoogleGenAI({ apiKey });
+    const prompt = `You are an expert news extractor. Given the raw text from a webpage below, extract ONLY the main news article content.
+Ignore all navigation menus, sidebars, related article links, advertisements, cookie notices, and footer text.
+Do not add any conversational filler, markdown formatting, or introductory text. Just the plain text paragraphs of the article.
+
+RAW WEBPAGE TEXT:
+${rawText.slice(0, 30000)}`;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-1.5-flash',
+      contents: prompt,
+    });
+
+    const articleText = (response.text || '').trim();
+    if (articleText.length >= 150) {
+      const sentences = articleText.split(/(?<=[.!?])\s+/);
+      const snippet = sentences.slice(0, 2).join(' ').trim();
+      return {
+        summary: snippet.length > 380 ? snippet.slice(0, 375) + '...' : snippet,
+        fullText: truncateArticleBody(articleText, 4500),
+        imageUrl: leadImage ? optimizeImageUrlTo16x9Webp(leadImage) : null,
+      };
+    }
+  } catch (err) {
+    console.warn('[Gemini Scraper] Extraction failed, falling back:', err.message);
+  }
+  return null;
+}
+
+/**
  * Modern semantic content extraction via Mozilla Readability & LinkeDOM
  */
 function extractWithReadability(html, targetUrl) {
@@ -418,17 +468,23 @@ async function scrapeFullArticle(url) {
 
     let extractedResult = null;
 
-    if (response.ok) {
-      let html = await response.text();
-      // Tier 1: Mozilla Readability
-      extractedResult = extractWithReadability(html, finalUrl);
+      if (response.ok) {
+        let html = await response.text();
+        
+        // Tier 1: Gemini AI Extraction (Bulletproof)
+        extractedResult = await extractWithGemini(html, finalUrl);
 
-      // Tier 2: Cheerio cascading selectors
-      if (!extractedResult) {
-        extractedResult = extractWithCheerio(html, finalUrl);
+        // Tier 2: Mozilla Readability (Fallback if Gemini fails or rate-limits)
+        if (!extractedResult) {
+          extractedResult = extractWithReadability(html, finalUrl);
+        }
+  
+        // Tier 3: Cheerio cascading selectors
+        if (!extractedResult) {
+          extractedResult = extractWithCheerio(html, finalUrl);
+        }
+        html = null; // Free HTML memory immediately
       }
-      html = null; // Free HTML memory immediately
-    }
 
     // Tier 3: Jina Reader Proxy (handles 403, Cloudflare bot-challenge, or JS-rendered pages)
     if (!extractedResult && (response.status === 403 || response.status === 429 || !response.ok || !extractedResult)) {
