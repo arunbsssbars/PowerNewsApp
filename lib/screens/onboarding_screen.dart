@@ -19,30 +19,30 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       'icon': Icons.electric_bolt_rounded,
       'accentColor': Color(0xFF0284C7),
       'gradient': [Color(0xFF0284C7), Color(0xFF0369A1)],
-      'title': 'Power Sector Intelligence\nAt Your Fingertips',
+      'title': 'Welcome to PowerNews',
       'description':
-          'Instant technical updates across SCADA, 765kV transmission corridors, generation, tariffs, and renewable energy.',
+          'The ultimate Indian Power Sector intelligence.',
       'stats': '1,300+ Verified Industry Briefings',
     },
     {
-      'badge': 'ALL-INDIA UTILITY COVERAGE',
-      'icon': Icons.location_city_rounded,
+      'badge': 'EXECUTIVE INTELLIGENCE',
+      'icon': Icons.insights_rounded,
       'accentColor': Color(0xFF7C3AED),
       'gradient': [Color(0xFF7C3AED), Color(0xFF6D28D9)],
-      'title': 'All Indian States &\nDISCOM Utilities',
+      'title': 'AI-Powered Briefings',
       'description':
-          'Filter news by your state or utility — UPPCL, PUVVNL, MVVNL, MSEDCL, BESCOM, Delhi BSES, Tata Power, and 40+ DISCOMs.',
+          '60-word summaries of the latest grid, renewables, and policy news.',
       'stats': '23+ States & 40+ Utilities Tracked',
     },
     {
-      'badge': 'CURATED FOR PROFESSIONALS',
-      'icon': Icons.insights_rounded,
+      'badge': 'ALL-INDIA UTILITY COVERAGE',
+      'icon': Icons.swipe_rounded,
       'accentColor': Color(0xFF059669),
       'gradient': [Color(0xFF059669), Color(0xFF047857)],
-      'title': 'Executive 50–100 Word\nIntelligence Stories',
+      'title': 'Real-time Alerts',
       'description':
-          'Actionable narrative briefings covering project capex, substation capacities, tariffs, and grid impact in 15 seconds.',
-      'stats': 'Fast • Grounded • Audio-Ready',
+          'Swipe through the latest updates effortlessly.',
+      'stats': '23+ States & 40+ Utilities Tracked',
     },
   ];
 

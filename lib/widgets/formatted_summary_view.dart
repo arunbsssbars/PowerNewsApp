@@ -183,7 +183,7 @@ class FormattedSummaryView extends StatelessWidget {
           final double effectiveFontSize = _calculateFittingFontSize(
             text: points.join(' '),
             startFontSize: fontSize,
-            minFontSize: 12.0,
+            minFontSize: 9.0,
             maxWidth: constraints.maxWidth,
             maxHeight: constraints.maxHeight,
             lineHeight: lineHeight,
@@ -267,7 +267,7 @@ class FormattedSummaryView extends StatelessWidget {
         final double effectiveFontSize = _calculateFittingFontSize(
           text: cleanProse,
           startFontSize: fontSize,
-          minFontSize: 12.0,
+          minFontSize: 9.0,
           maxWidth: constraints.maxWidth,
           maxHeight: constraints.maxHeight,
           lineHeight: lineHeight,

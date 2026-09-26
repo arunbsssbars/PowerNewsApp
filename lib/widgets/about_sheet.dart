@@ -75,7 +75,7 @@ class AboutSheet extends StatelessWidget {
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(12),
                       child: Image.asset(
-                        'assets/icons/app_icon.jpg',
+                        'assets/icons/hero_icon.jpg',
                         fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) => Container(
                           decoration: BoxDecoration(

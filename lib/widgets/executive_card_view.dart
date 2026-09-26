@@ -128,7 +128,7 @@ class ExecutiveCardView extends StatelessWidget {
                       state: article.state,
                       fontSize: 16.5,
                       lineHeight: 1.54,
-                      isScrollable: true,
+                      isScrollable: false,
                     ),
                   ),
                 ],
