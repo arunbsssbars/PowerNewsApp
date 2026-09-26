@@ -79,7 +79,7 @@ class ExecutiveCardView extends StatelessWidget {
 
     final size = MediaQuery.of(context).size;
     // Balanced lead image height (allocated 30% of screen height to perfectly fill card without bottom gaps)
-    final imageHeight = (size.height * 0.30).clamp(210.0, 265.0);
+    final imageHeight = (size.height * 0.30).clamp(150.0, 260.0);
 
     return Container(
       width: double.infinity,

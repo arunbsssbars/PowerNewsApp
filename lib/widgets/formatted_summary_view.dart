@@ -62,6 +62,7 @@ class FormattedSummaryView extends StatelessWidget {
     required String? fontFamily,
   }) {
     if (!maxHeight.isFinite || maxHeight <= 0 || maxWidth <= 0) return startFontSize;
+    final bufferMaxHeight = maxHeight - 4.0; // Buffer to prevent edge clipping
     for (double size = startFontSize; size >= minFontSize; size -= 0.5) {
       final textPainter = TextPainter(
         text: TextSpan(
@@ -73,10 +74,11 @@ class FormattedSummaryView extends StatelessWidget {
           ),
         ),
         textDirection: TextDirection.ltr,
+        textAlign: TextAlign.justify,
         maxLines: null,
       )..layout(maxWidth: maxWidth);
 
-      if (textPainter.size.height <= maxHeight) {
+      if (textPainter.size.height <= bufferMaxHeight) {
         return size;
       }
     }
